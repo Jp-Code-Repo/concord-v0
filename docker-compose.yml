@@ -1,0 +1,104 @@
+name: concord
+
+# Shared by every Laravel service (IAM now; gate / HR / ticketing later).
+x-laravel-env: &laravel-env
+  APP_ENV: ${APP_ENV:-local}
+  APP_DEBUG: ${APP_DEBUG:-true}
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: "3306"
+  REDIS_CLIENT: phpredis
+  REDIS_HOST: redis
+  REDIS_PASSWORD: ${REDIS_PASSWORD}
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  SESSION_DRIVER: array
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+
+services:
+  # The only thing published to the network. Serves the portal and routes /api/<service>/.
+  edge:
+    image: nginx:1.27-alpine
+    container_name: concord-edge
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/edge/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/edge/snippets:/etc/nginx/snippets:ro
+      - ./infra/edge/html:/usr/share/nginx/html:ro
+    networks: [concord-net]
+    restart: unless-stopped
+
+  iam:
+    build:
+      context: ./infra/php
+      args:
+        UID: ${HOST_UID:-1000}
+        GID: ${HOST_GID:-1000}
+    image: concord/php:8.3
+    container_name: concord-iam
+    working_dir: /var/www
+    volumes:
+      - ./services/iam:/var/www
+    environment:
+      <<: *laravel-env
+      APP_NAME: Concord IAM
+      APP_KEY: ${IAM_APP_KEY}
+      DB_DATABASE: concord_iam
+      DB_USERNAME: iam
+      DB_PASSWORD: ${IAM_DB_PASSWORD}
+      CACHE_PREFIX: iam
+      IAM_ADMIN_USERNAME: ${IAM_ADMIN_USERNAME:-itadmin}
+      IAM_ADMIN_EMAIL: ${IAM_ADMIN_EMAIL:-it@concord.local}
+      IAM_ADMIN_PASSWORD: ${IAM_ADMIN_PASSWORD}
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    networks: [concord-net]
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: concord-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      IAM_DB_PASSWORD: ${IAM_DB_PASSWORD}
+      HR_DB_PASSWORD: ${HR_DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infra/mysql/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    ports:
+      - "127.0.0.1:3307:3306"   # local dev access only; remove for production
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [concord-net]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: concord-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [concord-net]
+    restart: unless-stopped
+
+networks:
+  concord-net:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  redis-data:

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # One-time setup for a fresh checkout. Safe to re-run.
 set -euo pipefail
+export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 
 [ -f .env ] || cp .env.example .env

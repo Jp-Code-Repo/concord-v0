@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end check of the edge + IAM. Needs the stack running.
 set -uo pipefail
+export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 set -a; . ./.env; set +a
 

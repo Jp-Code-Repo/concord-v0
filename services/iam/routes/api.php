@@ -4,6 +4,8 @@ use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\GrantController;
+
 // Final URLs are /api/iam/... (Laravel adds the /api prefix).
 Route::prefix('iam')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
@@ -13,6 +15,16 @@ Route::prefix('iam')->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         // Called by the edge's auth_request only (the edge hides it from the outside).
         Route::get('verify', [AuthController::class, 'verify']);
+
+        Route::post(
+            '/offices/{office}/memberships/{membership}/grants',
+            [GrantController::class, 'store']
+        );
+
+        Route::post(
+            '/offices/{office}/memberships/{membership}/grants/{grant}/revoke',
+            [GrantController::class, 'revoke']
+        );
     });
 
     // Self-test for edge authentication: only answers when the edge vouched for the caller.

@@ -19,12 +19,17 @@ class AccessService
     public function forget(string $userId): void
     {
         Cache::forget("access:{$userId}");
+        Cache::forget("access:{$userId}:it-admin");
     }
 
     public function forUser(string $userId, bool $isItAdmin): array
     {
+        $cacheKey = $isItAdmin
+            ? "access:{$userId}:it-admin"
+            : "access:{$userId}";
+
         return Cache::remember(
-            "access:{$userId}",
+            $cacheKey,
             self::TTL,
             fn () => $this->compute($userId, $isItAdmin),
         );
@@ -51,10 +56,15 @@ class AccessService
                 'name' => $o->name,
                 'is_head' => true,
                 'apps' => $this->apps($appIds),
-                'blocks' => DB::table('blocks')
+                'blocks' => DB::table('office_head_blocks')
+                    ->join('blocks', 'blocks.id', '=', 'office_head_blocks.block_id')
                     ->join('app_groups', 'app_groups.id', '=', 'blocks.group_id')
+                    ->where('office_head_blocks.office_id', $o->id)
                     ->whereIn('app_groups.app_id', $appIds)
-                    ->distinct()->pluck('blocks.key')->all(),
+                    ->distinct()
+                    ->orderBy('blocks.key')
+                    ->pluck('blocks.key')
+                    ->all(),
             ];
             $seen[] = $o->id;
         }

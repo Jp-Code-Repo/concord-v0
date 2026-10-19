@@ -39,11 +39,11 @@ class IamAppCatalogTest extends TestCase
         $user = $this->makeUser(false, 'staff');
         $token = $this->loginAs($user);
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->getJson('/api/iam/admin/apps')
             ->assertForbidden();
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->postJson('/api/iam/admin/apps', ['key' => 'hris', 'name' => 'HRIS'])
             ->assertForbidden();
     }
@@ -53,7 +53,7 @@ class IamAppCatalogTest extends TestCase
         $admin = $this->makeUser(true, 'itadmin');
         $token = $this->loginAs($admin);
 
-        $created = $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $created = $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->postJson('/api/iam/admin/apps', [
                 'key' => 'hris',
                 'name' => 'Human Resources',
@@ -66,7 +66,7 @@ class IamAppCatalogTest extends TestCase
 
         $appId = $created->json('data.id');
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->patchJson('/api/iam/admin/apps/'.$appId, ['name' => 'HRIS', 'sort_order' => 1])
             ->assertOk()
             ->assertJsonPath('data.name', 'HRIS')
@@ -101,12 +101,12 @@ class IamAppCatalogTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->postJson('/api/iam/admin/apps', ['key' => 'hris', 'name' => 'Duplicate'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('key');
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->postJson('/api/iam/admin/apps', ['key' => 'HRIS app', 'name' => 'Invalid key'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('key');
@@ -137,7 +137,7 @@ class IamAppCatalogTest extends TestCase
             'created_at' => $now, 'updated_at' => $now,
         ]);
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->getJson('/api/iam/admin/apps')
             ->assertOk()
             ->assertJsonPath('data.0.key', 'hris')
@@ -153,7 +153,7 @@ class IamAppCatalogTest extends TestCase
 
         \DB::table('users')->where('id', $admin->id)->update(['is_it_admin' => false]);
 
-        $this->withUnencryptedCookie(SessionService::COOKIE, $token)
+        $this->withCredentials()->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->getJson('/api/iam/admin/apps')
             ->assertForbidden();
     }

@@ -268,6 +268,22 @@ public function test_it_admin_can_grant_a_block_configured_as_not_delegable(): v
         'block_id' => $blockId,
         'revoked_at' => null,
     ]);
+
+    $grant = DB::table('grants')
+        ->where('membership_id', $membershipId)
+        ->where('block_id', $blockId)
+        ->whereNull('revoked_at')
+        ->first();
+
+    $this->assertNotNull($grant);
+
+    $this->assertDatabaseHas('audit_logs', [
+        'user_id' => $admin->id,
+        'office_id' => $officeId,
+        'action' => 'access.grant_created',
+        'entity_type' => 'grant',
+        'entity_id' => $grant->id,
+    ]);
 }
 
 public function test_it_admin_can_grant_a_block_without_head_delegation_configuration(): void
@@ -756,6 +772,88 @@ public function test_grant_cannot_use_a_block_from_another_office(): void
     );
 
     $token = $this->loginAs($head);
+
+    $this->withCredentials()
+        ->withUnencryptedCookie(SessionService::COOKIE, $token)
+        ->postJson(
+            "/api/iam/offices/{$officeA}/memberships/{$membershipId}/grants",
+            ['block_id' => $blockId],
+        )
+        ->assertStatus(422);
+
+    $this->assertSame(
+        0,
+        DB::table('grants')
+            ->where('membership_id', $membershipId)
+            ->where('block_id', $blockId)
+            ->count(),
+    );
+}
+
+public function test_it_admin_cannot_grant_to_an_ended_membership(): void
+{
+    $admin = $this->makeUser('it-admin-ended-membership', true);
+    $staff = $this->makeUser('staff-ended-membership');
+
+    $officeId = $this->makeOffice(
+        'REG',
+        'Registrar',
+    );
+
+    $blockId = $this->makeBlock($officeId);
+    $membershipId = $this->makeMembership(
+        $staff->id,
+        $officeId,
+    );
+
+    DB::table('memberships')
+        ->where('id', $membershipId)
+        ->update([
+            'ended_at' => now(),
+            'ended_reason' => 'left_office',
+        ]);
+
+    $token = $this->loginAs($admin);
+
+    $this->withCredentials()
+        ->withUnencryptedCookie(SessionService::COOKIE, $token)
+        ->postJson(
+            "/api/iam/offices/{$officeId}/memberships/{$membershipId}/grants",
+            ['block_id' => $blockId],
+        )
+        ->assertNotFound();
+
+    $this->assertSame(
+        0,
+        DB::table('grants')
+            ->where('membership_id', $membershipId)
+            ->where('block_id', $blockId)
+            ->count(),
+    );
+}
+
+public function test_it_admin_cannot_grant_a_block_from_another_office(): void
+{
+    $admin = $this->makeUser('it-admin-cross-office', true);
+    $staff = $this->makeUser('staff-cross-office');
+
+    $officeA = $this->makeOffice(
+        'REG',
+        'Registrar',
+    );
+
+    $officeB = $this->makeOffice(
+        'LIB',
+        'Library',
+    );
+
+    $blockId = $this->makeBlock($officeB);
+    $membershipId = $this->makeMembership(
+        $staff->id,
+        $officeA,
+    );
+
+    $token = $this->loginAs($admin);
 
     $this->withCredentials()
         ->withUnencryptedCookie(SessionService::COOKIE, $token)

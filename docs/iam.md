@@ -51,3 +51,21 @@ IT administrators have global application access. Their grants are **not** limit
 
 - Adopted rules, open decisions, superseded proposals, and change control: [`iam-authorization-decisions.md`](iam-authorization-decisions.md).
 - How requests are authenticated before reaching services: [`edge.md`](edge.md).
+
+## Application catalog administration API
+
+These endpoints manage the Application → Group → Block catalog. They require an authenticated session and IT Administrator privileges.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/iam/admin/apps` | List the application catalog, including its Groups and Blocks. |
+| POST | `/api/iam/admin/apps` | Create an application catalog entry. |
+| PATCH | `/api/iam/admin/apps/{appId}` | Update an existing application catalog entry. |
+
+### Authorization and behavior
+
+- Requests must have a valid authenticated session.
+- Only active IT Administrators may use these endpoints.
+- Catalog changes are audited.
+- These endpoints manage catalog definitions. They do not automatically grant Blocks to users.
+- Existing grants, office boundaries, explicit View access, and unresolved authorization decisions remain governed by this document and `iam-authorization-decisions.md`.

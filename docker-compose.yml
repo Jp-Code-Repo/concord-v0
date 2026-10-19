@@ -26,7 +26,7 @@ services:
     volumes:
       - ./infra/edge/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/edge/snippets:/etc/nginx/snippets:ro
-      - ./infra/edge/html:/usr/share/nginx/html:ro
+      - ./services/concord-frontend/dist:/usr/share/nginx/html:ro
     networks: [concord-net]
     restart: unless-stopped
 

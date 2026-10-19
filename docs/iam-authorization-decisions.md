@@ -1,6 +1,5 @@
-Concord IAM Authorization Decisions
 Status: Working authority for IAM authorization decisions
-Last reconciled: 2026-10-18 (merges the earlier "AUTH/CONFLICT" record with the later "DEC-AUTH/OPEN-AUTH" record)
+Last reconciled: 2026-10-19 (includes the decision to defer Spatie Permission)
 Scope: Authorization semantics: who may hold, grant and revoke access, and how effective access is computed. This document does not replace the repository as the source of truth for implementation.
 Purpose: Keep approved rules, current implementation behavior, superseded proposals, and open decisions distinguishable.
 1. How to use this record
@@ -57,14 +56,25 @@ DEC-AUTH-009: Disabled accounts lose access immediately
 - Provenance: carried over from the original iam.md ("must invalidate") and the edge design. The later iam.md softened it to "under the current implementation"; it is restored as a requirement here.
 DEC-AUTH-010: Account disablement is restricted to IT Administrators
 - Approval status: Approved
-- Implementation status: Not implemented
+- Implementation status: Implemented and verified by automated tests (`UserManagementTest`)
 - Only an authenticated IT Administrator may disable an account.
 - The disable operation must set the account status to disabled, populate disabled_at, revoke all active sessions with reason account_disabled, invalidate both effective-access cache keys, and write an audit entry.
 - The operation must preserve the account record and must not leave valid sessions usable after the disable action succeeds.
 - This decision establishes the immediate authorization rule only. The distinction between a System Administrator and an IT Administrator remains unresolved under OPEN-AUTH-005.
+DEC-AUTH-011: Defer Spatie Permission and retain Concord IAM as the access authority
+- Approval status: Approved
+- Implementation status: No Spatie integration is planned at this stage.
+- Concord's existing Application → Group → Block model remains the source of truth for platform access, including grants and effective-access decisions.
+- Do not mirror every Concord Block, grant, or role into Spatie Permission by default. A parallel representation would introduce synchronization requirements and ambiguity if the records disagree.
+- Concord's existing model already covers its current requirements for office boundaries, Office Head delegation, IT Administrator authority, grant/revocation history, effective-access calculation, auditing, and cache invalidation.
+- Laravel's built-in Gates and Policies may be used to organize authorization checks within individual services without introducing Spatie Permission.
+- Reconsider Spatie only when a concrete requirement demonstrates a meaningful benefit that cannot be addressed cleanly by Concord IAM or Laravel's built-in authorization facilities.
+- Any future proposal must identify Spatie's exact responsibility, preserve Concord IAM as the authority for platform access, explain any data duplication and synchronization, and demonstrate that revocation, membership, office-boundary, and delegation rules cannot be bypassed.
+- This decision does not resolve OPEN-AUTH-001, OPEN-AUTH-003, OPEN-AUTH-005, or any other open IAM decision.
 3. Open decisions requiring explicit approval
 OPEN-AUTH-001: Is an office an active runtime authorization context?
 (legacy ID: CONFLICT-001)
+
 Sources conflict:
 - Model A, active office: the primary office sets the default workspace; users switch among authorized offices through a Workspace selector; the selected active office persists and affects authorization and audit context.
 - Model B, additive: access is combined across all active memberships; the primary office only sets the default dashboard/workspace; there is no active authorization context. The current implementation returns combined office access.
@@ -76,12 +86,15 @@ Do not choose silently. Before implementing office switching or changing authori
 5. Edge contract: if an active office exists, verify / /_auth must also return it and the edge must pass it to services (for example a CONCORD_OFFICE_ID FastCGI parameter, never a client-settable header). Until decided, the edge passes only CONCORD_USER_ID.
 OPEN-AUTH-002: Which high-risk Blocks need extra restrictions?
 (legacy ID: OPEN-001)
+
 No approved list of high-risk Blocks or separate policy exists. Do not invent a list, and do not assume all high-risk actions share one rule. Record concrete cases and obtain approval here before adding exceptions.
 OPEN-AUTH-003: Are there Block dependency rules beyond explicit grants?
 IAM must not auto-grant View (DEC-AUTH-002). If applications need Block dependencies, the project still needs one explicit, consistent way to declare and enforce them. This item is not permission to infer dependencies from names or conventions.
+
 Suggested direction, not a decision: a grant UI could warn "this Block usually needs X" using application-declared prerequisites, without auto-granting.
 OPEN-AUTH-004: Office Head restrictions beyond office_head_blocks
 (legacy ID: OPEN-002, restored)
+
 office_head_blocks lets IT configure which Blocks a Head can use and whether each can be delegated. Any additional role-wide or high-risk restrictions need an explicit decision.
 OPEN-AUTH-005: Should System Administrator and IT Administrator be separate authority levels?
 - Approval status: Open
@@ -106,16 +119,26 @@ Notes describe the reviewed snapshot. Verify against the repository before relyi
 - services/iam/app/Services/AccessService.php implements configured Office Head Blocks via office_head_blocks. Its comments must say "configured Blocks", not "all Blocks".
 - services/iam/app/Http/Controllers/GrantController.php implements office-scoped grant/revoke validation, can_delegate checks, audit logging, and cache invalidation.
 - Feature tests cover Office Head configuration, office boundaries, grant/revoke, and cache invalidation.
-Checklist:
-- [ ] docs/iam.md matches this record and links here.
-- [ ] GrantController applies can_delegate to Office Heads only; IT admins are exempt (DEC-AUTH-004).
-- [ ] Test: IT admin grants a Block with can_delegate = false → succeeds. Office Head does the same → rejected. Both cases audit logged.
-- [ ] Test: IT admin is still rejected for a staff membership that is ended or in another office.
-- [ ] Test: disabling an account invalidates its sessions and verify returns 401 (DEC-AUTH-009).
-- [ ] AccessService.php comments describe configured Office Head Blocks.
-- [ ] Code comments, tests, and notes that cite legacy IDs (see section 7) are updated.
-- [ ] Office-context behavior is unchanged until OPEN-AUTH-001 is resolved.
-- [ ] Tests are run against a verified test database before claiming validation.
+
+Checklist (checked = verified in the reviewed snapshot; unchecked = pending or only partly verified):
+- [x] docs/iam.md links to this record and identifies it as the authorization decision authority.
+- [x] GrantController applies can_delegate to Office Heads only; IT admins are exempt (DEC-AUTH-004).
+- [ ] Test: IT admin grants a Block with can_delegate = false → succeeds and is audit logged (verified). Office Head does the same → rejected (verified). Audit logging of the Office Head's denied attempt has not been separately verified.
+- [x] Test: IT admin is still rejected for a staff membership that is ended or in another office.
+- [x] Test: disabling an account invalidates its sessions and /api/iam/me rejects the disabled user's session (DEC-AUTH-009/010).
+- [ ] Test: after disabling an account, IAM verify itself returns 401. Only /api/iam/me is currently evidenced, and the edge's /_auth depends on verify (DEC-AUTH-009).
+- [x] AccessService.php comments describe configured Office Head Blocks.
+- [x] Code comments, tests, and notes that cite legacy IDs (see section 7) are updated. A legacy-reference search returned no matches in services/iam/app or services/iam/tests; references in docs/iam.md use the adopted decision IDs.
+- [ ] Office-context behavior is unchanged until OPEN-AUTH-001 is resolved. No explicit office-context change was identified in the reviewed route diff, but the full change set has not been compared.
+- [ ] Tests are run against a verified test database before claiming validation. PHPUnit targets concord_iam_test and the suite passed, but isolation from development data has not been independently established.
+
+**Latest verification run:** 41 tests passed, 236 assertions, using the PHPUnit testing configuration.
+
+**Additional test coverage added:**
+- `test_it_admin_cannot_grant_to_an_ended_membership`
+- `test_it_admin_cannot_grant_a_block_from_another_office`
+- `test_it_admin_can_grant_a_block_configured_as_not_delegable` now asserts the corresponding `access.grant_created` audit record.
+
 6. Change control
 When a decision changes:
 1. Update this document first, mark the previous rule as superseded, and add a dated change-history entry.
@@ -142,6 +165,8 @@ OPEN-002	OPEN-AUTH-004
 
 
 8. Change history
+- 2026-10-19: Added DEC-AUTH-011 to defer Spatie Permission and retain Concord IAM as the authoritative platform-access model.
 - 2026-10-18: Added DEC-AUTH-010 approving IT-admin-only account disablement (implementation remains pending) and OPEN-AUTH-005 to defer the System Administrator vs IT Administrator separation discussion until after the immediate fixes. Removed obsolete scaffold/iam/ references because the scaffold has been deleted.
 - 2026-10-18 (reconciliation): Merged the two records. Adopted the DEC-AUTH/OPEN-AUTH numbering with a legacy map. Reversed the rule that IT-admin grants are bound by can_delegate (DEC-AUTH-004). Restored: change history, implementation checklist, per-rule Implementation/approval notes, OPEN-AUTH-004 (was OPEN-002), and session invalidation as a requirement (DEC-AUTH-009). Added edge-contract impact to OPEN-AUTH-001 and test requirements for the IT-admin exemption. No open decision was resolved.
 - 2026-10-18 (earlier): Consolidated configured-Blocks model, explicit View rule, delegation distinction, and the unresolved office-context conflict.
+- 2026-10-19: Reconciled IAM implementation evidence and checklist. Full IAM suite passed (41 tests, 236 assertions). Added IT Administrator tests for ended-membership and cross-office grant restrictions, and an audit assertion for successful grants when `can_delegate = false`. Verified the Office Head delegation exemption in GrantController, configured-Block comments in AccessService, current documentation references, and the Edge FastCGI cookie-forwarding configuration. OPEN-AUTH-001 through OPEN-AUTH-005 remain unresolved. Test database isolation and unchanged office-context behavior remain pending independent verification.

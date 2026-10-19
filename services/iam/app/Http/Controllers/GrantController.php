@@ -67,16 +67,21 @@ class GrantController extends Controller
             'The Block is not assigned to this office.'
         );
 
-        $delegation = DB::table('office_head_blocks')
-            ->where('office_id', $office)
-            ->where('block_id', $data['block_id'])
-            ->first();
+        // Only Office Heads are restricted by delegation configuration.
+        // IT Administrators may grant Blocks without an office_head_blocks row
+        // or regardless of its can_delegate value.
+        if (! $actor->is_it_admin) {
+            $delegation = DB::table('office_head_blocks')
+                ->where('office_id', $office)
+                ->where('block_id', $data['block_id'])
+                ->first();
 
-        abort_unless(
-            $delegation && $delegation->can_delegate,
-            403,
-            'This Block is not configured for delegation.'
-        );
+            abort_unless(
+                $delegation && $delegation->can_delegate,
+                403,
+                'This Block is not configured for delegation.'
+            );
+        }
 
         $duplicate = DB::table('grants')
             ->where('membership_id', $membership)
@@ -273,3 +278,4 @@ class GrantController extends Controller
         ]);
     }
 }
+

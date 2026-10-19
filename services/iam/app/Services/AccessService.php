@@ -6,11 +6,12 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * What a person can use = IT admin (everything) OR, per office they belong to:
- *   - head of the office: every block of the office's apps
- *   - otherwise: the blocks with an active (not revoked) grant on their membership
+ * Effective access is calculated as IT-admin global access or, per office:
+ *   - office head: only Blocks configured for that office in office_head_blocks
+ *   - staff: Blocks with an active (not revoked) grant on an active membership
  *
- * Cached per user; call forget() whenever a grant, membership or head changes.
+ * office_head_blocks.can_delegate controls delegation, not the head's own access.
+ * Cached per user and access class; call forget() after relevant access changes.
  */
 class AccessService
 {

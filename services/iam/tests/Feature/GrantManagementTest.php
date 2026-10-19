@@ -229,45 +229,83 @@ class GrantManagementTest extends TestCase
         ]);
     }
 
-    public function test_it_admin_cannot_grant_a_block_configured_as_not_delegable(): void
-    {
-        $admin = $this->makeUser('it-admin', true);
-        $staff = $this->makeUser('staff');
-        $head = $this->makeUser('head');
+public function test_it_admin_can_grant_a_block_configured_as_not_delegable(): void
+{
+    $admin = $this->makeUser('it-admin', true);
+    $staff = $this->makeUser('staff');
+    $head = $this->makeUser('head');
 
-        $officeId = $this->makeOffice(
-            'REG',
-            'Registrar',
-            $head->id,
-        );
+    $officeId = $this->makeOffice(
+        'REG',
+        'Registrar',
+        $head->id,
+    );
 
-        $blockId = $this->makeBlock($officeId);
-        $membershipId = $this->makeMembership(
-            $staff->id,
-            $officeId,
-        );
+    $blockId = $this->makeBlock($officeId);
+    $membershipId = $this->makeMembership(
+        $staff->id,
+        $officeId,
+    );
 
-        $this->configureHeadDelegation(
-            $officeId,
-            $blockId,
-            false,
-        );
+    $this->configureHeadDelegation(
+        $officeId,
+        $blockId,
+        false,
+    );
 
-        $token = $this->loginAs($admin);
+    $token = $this->loginAs($admin);
 
-        $this->withCredentials()
-            ->withUnencryptedCookie(SessionService::COOKIE, $token)
-            ->postJson(
-                "/api/iam/offices/{$officeId}/memberships/{$membershipId}/grants",
-                ['block_id' => $blockId],
-            )
-            ->assertForbidden();
+    $this->withCredentials()
+        ->withUnencryptedCookie(SessionService::COOKIE, $token)
+        ->postJson(
+            "/api/iam/offices/{$officeId}/memberships/{$membershipId}/grants",
+            ['block_id' => $blockId],
+        )
+        ->assertCreated();
 
-        $this->assertDatabaseMissing('grants', [
-            'membership_id' => $membershipId,
-            'block_id' => $blockId,
-        ]);
-    }
+    $this->assertDatabaseHas('grants', [
+        'membership_id' => $membershipId,
+        'block_id' => $blockId,
+        'revoked_at' => null,
+    ]);
+}
+
+public function test_it_admin_can_grant_a_block_without_head_delegation_configuration(): void
+{
+    $admin = $this->makeUser('it-admin-no-config', true);
+    $staff = $this->makeUser('staff-no-config');
+    $head = $this->makeUser('head-no-config');
+
+    $officeId = $this->makeOffice(
+        'REG',
+        'Registrar',
+        $head->id,
+    );
+
+    $blockId = $this->makeBlock($officeId);
+    $membershipId = $this->makeMembership(
+        $staff->id,
+        $officeId,
+    );
+
+    // Intentionally do not create an office_head_blocks row.
+
+    $token = $this->loginAs($admin);
+
+    $this->withCredentials()
+        ->withUnencryptedCookie(SessionService::COOKIE, $token)
+        ->postJson(
+            "/api/iam/offices/{$officeId}/memberships/{$membershipId}/grants",
+            ['block_id' => $blockId],
+        )
+        ->assertCreated();
+
+    $this->assertDatabaseHas('grants', [
+        'membership_id' => $membershipId,
+        'block_id' => $blockId,
+        'revoked_at' => null,
+    ]);
+}
 
     public function test_head_can_revoke_a_grant_without_deleting_its_history(): void
     {

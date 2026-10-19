@@ -4,6 +4,15 @@ set -euo pipefail
 export MSYS_NO_PATHCONV=1
 cd "$(dirname "$0")/.."
 
+# The IAM Laravel application must be part of the repository.
+# Do not generate a bare Laravel app: the old scaffold/ directory has been removed.
+if [ ! -f services/iam/artisan ]; then
+  echo "ERROR: services/iam/artisan was not found."
+  echo "The IAM Laravel application must already exist in the checkout."
+  echo "Restore the committed IAM application files before running bootstrap."
+  exit 1
+fi
+
 [ -f .env ] || cp .env.example .env
 
 set_var()  { sed -i "s|^$1=.*|$1=$2|" .env; }                                   # always set
@@ -21,18 +30,6 @@ fill_var IAM_ADMIN_PASSWORD  "$(rand)"
 
 echo "==> Building the PHP image"
 docker compose build iam
-
-if [ ! -f services/iam/artisan ]; then
-  echo "==> Creating the IAM Laravel app (first run only)"
-  docker compose run --rm --no-deps -u www-data iam sh -ec '
-    composer create-project laravel/laravel:^12.0 /tmp/laravel --no-interaction --prefer-dist --no-scripts
-    cp -a /tmp/laravel/. /var/www/
-    cd /var/www
-    rm -f database/migrations/0001_01_01_* database/factories/UserFactory.php database/database.sqlite
-    php artisan package:discover --ansi
-  '
-  cp -a scaffold/iam/. services/iam/
-fi
 
 echo "==> Starting MySQL and Redis"
 docker compose up -d --wait mysql redis

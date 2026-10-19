@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\SessionAuth;
+use App\Http\Middleware\RequireItAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,7 +14,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['session.auth' => SessionAuth::class]);
+        $middleware->alias([
+            'session.auth' => SessionAuth::class,
+            'it.admin' => RequireItAdmin::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // IAM is an API: always answer in JSON.

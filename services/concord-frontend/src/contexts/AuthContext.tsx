@@ -11,6 +11,7 @@ import {
   IamApiError,
   login as iamLogin,
   logout as iamLogout,
+  type IamAccess,
   type IamSession,
   type IamUser,
 } from "@/lib/iam";
@@ -24,7 +25,7 @@ export type AuthStatus =
 export interface AuthContextValue {
   status: AuthStatus;
   user: IamUser | null;
-  access: unknown;
+  access: IamAccess | null;
   error: string | null;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -40,7 +41,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<IamUser | null>(null);
-  const [access, setAccess] = useState<unknown>(null);
+  const [access, setAccess] = useState<IamAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const applySession = useCallback((session: IamSession) => {

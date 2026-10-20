@@ -5,6 +5,8 @@ import { Navigate, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/contexts/AuthContext";
 import concordEmblem from "@/assets/brand/concord-emblem.png";
 
+import { SessionLoader } from "@/components/layout/SessionLoader";
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { status, signIn } = useAuth();
@@ -35,13 +37,7 @@ export function LoginPage() {
   }
 
   if (status === "loading") {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">
-          Checking your session...
-        </p>
-      </main>
-    );
+    return <SessionLoader />;
   }
 
     if (status === "authenticated") {

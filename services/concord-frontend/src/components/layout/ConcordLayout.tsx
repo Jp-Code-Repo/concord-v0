@@ -10,6 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import { CorrectionRequestProvider } from "@/contexts/CorrectionRequestContext";
 
+import { SessionLoader } from "@/components/layout/SessionLoader";
+
 export function ConcordLayout() {
   const [theme, setTheme] = useState<ConcordTheme>("light");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -26,13 +28,7 @@ export function ConcordLayout() {
   const { status, refreshSession } = useAuth();
 
   if (status === "loading") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <p className="text-sm text-muted-foreground">
-          Verifying your session...
-        </p>
-      </div>
-    );
+    return <SessionLoader />;
   }
 
   if (status === "unauthenticated") {

@@ -19,6 +19,8 @@ import { PreferencesSettings } from "@/components/profile/PreferencesSettings";
 import { CorrectionRequestDialog } from "@/components/profile/CorrectionRequestDialog";
 import { CorrectionRequestsList } from "@/components/profile/CorrectionRequestsList";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 const tabs = [
   { label: "Personal Information", icon: UserRound },
   { label: "Employment", icon: BriefcaseBusiness },
@@ -27,24 +29,6 @@ const tabs = [
   { label: "Preferences", icon: LockKeyhole },
 ];
 
-const personalInformation = [
-  [
-    { label: "Full Name", value: "Alex Santos" },
-    { label: "Date of Birth", value: "January 15, 1996" },
-    { label: "Gender", value: "Male" },
-    { label: "Civil Status", value: "Single" },
-  ],
-  [
-    { label: "Nationality", value: "Filipino" },
-    { label: "Phone Number", value: "+63 912 345 6789" },
-    { label: "Email Address", value: "alex.santos@example.edu" },
-    {
-      label: "Address",
-      value:
-        "123 Sampaguita Street, Brgy. San Isidro, Quezon City, Philippines 1100",
-    },
-  ],
-];
 
 const employmentInformation = [
   [
@@ -114,6 +98,27 @@ function InformationColumns({
 }
 
 export function ProfilePage() {
+  const { user } = useAuth();
+
+  const personalInformation = [
+    [
+      { label: "Full Name", value: user?.display_name || user?.username || "" },
+      { label: "Date of Birth", value: "January 15, 1996" },
+      { label: "Gender", value: "Male" },
+      { label: "Civil Status", value: "Single" },
+    ],
+    [
+      { label: "Nationality", value: "Filipino" },
+      { label: "Phone Number", value: "+63 912 345 6789" },
+      { label: "Email Address", value: user?.email ?? "" },
+      {
+        label: "Address",
+        value:
+          "123 Sampaguita Street, Brgy. San Isidro, Quezon City, Philippines 1100",
+      },
+    ],
+  ];
+  
   const [activeTab, setActiveTab] = useState("Personal Information");
 
   const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
@@ -170,7 +175,7 @@ export function ProfilePage() {
 
             <div>
               <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-                Alex Santos
+                {user?.display_name || user?.username || "Concord User"}
               </h2>
               <p className="mt-1 font-medium">System Administrator</p>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -178,7 +183,7 @@ export function ProfilePage() {
               </p>
 
               <span className="mt-3 inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                Employee · Preview
+                {user?.is_it_admin ? "IT Administrator" : "Concord Account"}
               </span>
             </div>
           </div>
@@ -186,7 +191,7 @@ export function ProfilePage() {
           <div className="grid gap-4 border-t pt-5 text-sm md:min-w-[300px] md:border-l md:border-t-0 md:pl-6 md:pt-0">
             <div className="flex items-start gap-3">
               <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-              <span className="break-all">alex.santos@example.edu</span>
+              <span className="break-all">{user?.email ?? ""}</span>
             </div>
 
             <div className="flex items-start gap-3">

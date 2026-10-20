@@ -8,9 +8,20 @@ export interface IamUser {
   is_it_admin: boolean;
 }
 
+export interface IamAppAccess {
+  key: string;
+  name: string;
+}
+
+export interface IamAccess {
+  all_access: boolean;
+  apps: IamAppAccess[];
+  offices: unknown[];
+}
+
 export interface IamSession {
   user: IamUser;
-  access: unknown;
+  access: IamAccess;
 }
 
 interface IamErrorResponse {

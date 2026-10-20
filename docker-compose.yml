@@ -52,6 +52,7 @@ services:
       IAM_ADMIN_USERNAME: ${IAM_ADMIN_USERNAME:-itadmin}
       IAM_ADMIN_EMAIL: ${IAM_ADMIN_EMAIL:-it@concord.local}
       IAM_ADMIN_PASSWORD: ${IAM_ADMIN_PASSWORD}
+      IAM_DEMO_SEED: ${IAM_DEMO_SEED:-false}
     depends_on:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }

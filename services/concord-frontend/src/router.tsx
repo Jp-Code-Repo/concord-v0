@@ -1,8 +1,9 @@
 import { createRouter } from "@tanstack/react-router";
 import { rootRoute } from "./routes/__root";
-import { concordRoute, indexRoute, profileRoute } from "./routes";
+import { concordRoute, indexRoute, loginRoute, profileRoute } from "./routes";
 
 const routeTree = rootRoute.addChildren([
+  loginRoute,
   concordRoute.addChildren([indexRoute, profileRoute]),
 ]);
 

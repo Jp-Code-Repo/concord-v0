@@ -9,12 +9,18 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 import avatar from "@/assets/illustrations/profile-avatar.png";
 
 export function ProfileDropdown() {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const { user, signOut } = useAuth();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
 
   useEffect(() => {
     function handleOutsideClick(event: MouseEvent) {
@@ -36,6 +42,25 @@ export function ProfileDropdown() {
   function goToProfile() {
     setProfileOpen(false);
     navigate({ to: "/profile" });
+  }
+
+  async function handleSignOut() {
+    setProfileOpen(false);
+    setSignOutError("");
+    setIsSigningOut(true);
+
+    try {
+      await signOut();
+      await navigate({ to: "/login" });
+    } catch (error) {
+      setSignOutError(
+        error instanceof Error
+          ? error.message
+          : "Unable to sign out. Please try again.",
+      );
+    } finally {
+      setIsSigningOut(false);
+    }
   }
 
   return (
@@ -65,12 +90,14 @@ export function ProfileDropdown() {
             />
 
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">Alex Santos</p>
+              <p className="truncate text-sm font-semibold">
+                {user?.display_name ?? user?.username ?? "Concord User"}
+              </p>
               <p className="truncate text-xs text-muted-foreground">
-                alex.santos@example.edu
+                {user?.email ?? ""}
               </p>
               <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                Preview identity
+                {user?.is_it_admin ? "IT Administrator" : "Concord Account"}
               </p>
             </div>
           </div>
@@ -133,14 +160,21 @@ export function ProfileDropdown() {
             <button
               type="button"
               role="menuitem"
-              onClick={() => setProfileOpen(false)}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40"
+              onClick={() => void handleSignOut()}
+              disabled={isSigningOut}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/40"
             >
               <LogOut className="h-4 w-4" />
-              Sign Out
+              {isSigningOut ? "Signing out..." : "Sign Out"}
             </button>
           </div>
         </div>
+      )}
+
+      {signOutError && (
+        <p role="alert" className="border-t px-3 py-2 text-xs text-destructive">
+          {signOutError}
+        </p>
       )}
     </div>
   );

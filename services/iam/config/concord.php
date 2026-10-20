@@ -13,4 +13,7 @@ return [
         'email' => env('IAM_ADMIN_EMAIL', 'it@concord.local'),
         'password' => env('IAM_ADMIN_PASSWORD'),
     ],
+    
+    // Explicit opt-in for local demo identities. Never enable in production.
+    'demo_seed_enabled' => env('IAM_DEMO_SEED', false),
 ];

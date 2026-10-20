@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 set -a; . ./.env; set +a
 
 BASE="${BASE_URL:-http://localhost}"
-JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
+JAR=".smoke-cookie-$$.txt"; trap 'rm -f "$JAR"' EXIT
 JSON=(-H 'Content-Type: application/json' -H 'Accept: application/json')
 fail=0
 

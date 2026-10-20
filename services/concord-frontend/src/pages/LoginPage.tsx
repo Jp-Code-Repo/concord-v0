@@ -56,13 +56,13 @@ export function LoginPage() {
           }}
         />
 
-        <div className="relative flex items-center gap-3">
+        <div className="relative flex flex-col items-start gap-3">
           <img
             src={concordEmblem}
-            alt=""
-            className="h-11 w-11 object-contain"
+            alt="Concord emblem"
+            className="h-40 w-40 object-contain object-left"
           />
-          <span className="text-xl font-semibold tracking-tight">Concord</span>
+          <span className="text-4xl font-semibold tracking-tight">Concord</span>
         </div>
 
         <div className="relative max-w-xl space-y-6 py-12">

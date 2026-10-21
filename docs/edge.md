@@ -1,3 +1,15 @@
+---
+title: Edge: use and purpose
+date: 2026-10-21
+tags:
+  - concord/edge
+  - concord/architecture
+aliases:
+  - Concord edge
+  - nginx edge
+status: working-reference
+---
+
 # Edge: use and purpose
 
 The **edge** is Concord's front door. It is a single nginx container (`concord-edge`) and the **only** part of the stack reachable from the network. It is Concord's equivalent of `as-server` in the asqueue setup, and it lives in `infra/edge/` inside the same repo.
@@ -73,7 +85,9 @@ $userId = $request->server('CONCORD_USER_ID');
 
 **What the edge does not do.** It answers *who*, not *what they may do*. Each service still checks the specific block (for example `registrar.student-profile.chinese-name`) for every action, with IAM's data.
 
-**Office context is not passed.** The edge currently passes only `CONCORD_USER_ID`. Whether an active office context exists is unresolved (OPEN-AUTH-001 in `iam-authorization-decisions.md`). If it is adopted, `verify` and `/_auth` must also return the office, and the edge must pass it as a FastCGI parameter (for example `CONCORD_OFFICE_ID`), never as a client-settable header. Do not add it until that decision is recorded.
+**Internal IAM authorization endpoint boundary.** The proposed Block-authorization endpoint for Concord services must not be routed through or exposed by this public edge. It is intended to be reachable only over the internal service network and must also require a distinct credential for each approved calling service. This is a design requirement, not a statement that the endpoint or service credentials currently exist. See [[iam-internal-authorization-contract-proposal]] and [[iam-authorization-decisions#DEC-AUTH-012 – Concord services must check current IAM authorization for protected operations|DEC-AUTH-012]]/013.
+
+**Office context is not passed.** The edge currently passes only `CONCORD_USER_ID`. Whether an active office context exists is unresolved ([[iam-authorization-decisions#OPEN-AUTH-001 – Is an office an active runtime authorization context?|OPEN-AUTH-001]] in [[iam-authorization-decisions]]). If it is adopted, `verify` and `/_auth` must also return the office, and the edge must pass it as a FastCGI parameter (for example `CONCORD_OFFICE_ID`), never as a client-settable header. Do not add it until that decision is recorded.
 
 ## 4. What is in `nginx.conf`
 
@@ -143,7 +157,7 @@ nginx subrequests **share variables with the request that started them**. An ear
 - **HTTPS.** Terminate TLS at the edge (port 443, certificate), redirect 80 to 443, then set `COOKIE_SECURE=true` so the session cookie travels only over HTTPS. Add HSTS once HTTPS is stable.
 - **Cookie and CSRF policy.** The session is a cookie, so state-changing routes need a CSRF decision. Set the cookie `HttpOnly` and an explicit `SameSite` (Lax is a reasonable start), and decide how POST/PUT/DELETE routes are protected (SameSite alone, a CSRF token, or an Origin check at the edge). Record the choice here once made.
 - **Load balancing.** If one copy of a service is not enough, define an `upstream` with several php-fpm containers. Services are stateless (sessions live in IAM and Redis), so this works without redesign. At 200 concurrent users, one copy of each is expected to be enough.
-- **Caching.** Static assets can be cached freely. Do **not** cache the `/_auth` responses for more than a moment: disabling an account or revoking a grant has to take effect immediately. This depends on IAM rejecting disabled users and invalidated sessions in `verify` (DEC-AUTH-009).
+- **Caching.** Static assets can be cached freely. Do **not** cache the `/_auth` responses for more than a moment: disabling an account or revoking a grant has to take effect immediately. This depends on IAM rejecting disabled users and invalidated sessions in `verify` ([[iam-authorization-decisions#DEC-AUTH-009 – Disabled accounts lose access immediately|DEC-AUTH-009]]).
 
 ## 7. Troubleshooting
 
@@ -179,3 +193,11 @@ docker compose exec edge nginx -s reload
 5. `SESSION_DOMAIN` and `SameSite` match how the browser reaches the edge (for example `localhost` versus an IP).
 
 Compare the cookie value in the browser with the value in `auth_sessions` or Redis; a mismatch points at the encoding step.
+
+## Related notes
+
+- [[IAM - Access Model]]: what `verify`, `/me`, and `login` belong to.
+- [[iam-authorization-decisions]]: [[iam-authorization-decisions#OPEN-AUTH-001 – Is an office an active runtime authorization context?|OPEN-AUTH-001]] (office context) and [[iam-authorization-decisions#DEC-AUTH-009 – Disabled accounts lose access immediately|DEC-AUTH-009]] (disabled accounts) affect what the edge passes and rejects.
+- [[iam-internal-authorization-contract-proposal]]: the internal endpoint that must never be exposed through this edge.
+- [[concord-frontend-working-document]]: the React app the edge serves at `/`.
+- [[Concord Index]]

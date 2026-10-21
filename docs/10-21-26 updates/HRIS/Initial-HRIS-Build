@@ -1,0 +1,37 @@
+Concord: Building a Real HRIS Service
+Adviser notes, 2026-10-20
+Decision
+Build an actual HRIS service now, instead of filling the IAM catalog with imaginary apps through a demo seeder. A real service forces the cross-service contracts to be real, and it gives the frontend real data for the dashboard and profile.
+Seeding shrinks, it doesn't disappear
+• IAM still needs the hris app, with its Groups and Blocks, registered in the catalog.
+• HRIS itself needs a few seeded employees and departments to test with.
+• This is a smaller, cleaner seed, because it matches what the real service will hold.
+What HRIS depends on in IAM
+The gaps found in the current code show up the moment HRIS exists:
+1. Block checks. HRIS needs a way to ask IAM whether a user holds a given Block. Nothing exposes this today; the edge passes only CONCORD_USER_ID.
+2. Assigning offices. When HR assigns a user to a department, IAM needs an endpoint to create the membership and set the primary office. HR never writes to IAM's database.
+3. Account creation. The hire flow is that HR asks IAM to create the account. That endpoint does not exist yet.
+4. The /me contract. Groups and Blocks returned as objects (not flat key strings), a launch_path per app, and an is_primary marker on memberships. The frontend must not parse block keys or infer the primary office from array order.
+HRIS v0 scope: keep it thin
+Build only what the frontend needs to render real data:
+• A database with departments, employees (with iam_user_id), and department assignments with history.
+• GET /api/hr/employees/me, which also gives the profile page real data.
+• An employee list gated by one Block.
+• An "assign to department" action gated by another Block, which calls IAM.
+Leave for later: the correction-request workflow, hiring, and reports.
+Home office
+The primary (home) office is decided by HRIS: HR assigns a user to an office/department, and that becomes the user's home office and dashboard. IAM cannot read HRIS's database, so IAM stores the result (for example an is_primary flag on the membership), set through an IAM endpoint that HRIS calls.
+Build order
+1. Settle the cross-service contracts (items 1 to 3 above).
+2. Build the IAM side: the endpoints, is_primary, the new /me shape, and the hris catalog entries.
+3. Add the HRIS service to compose and nginx with auth_request, using the existing /api/hr/ template.
+4. Build the thin HRIS slice.
+5. Point the frontend at the new /me and drop the hardcoded dashboard.
+Open decision
+Who owns the list of offices and departments?
+• Option A: HRIS owns departments, and IAM offices mirror them by code.
+• Option B: IAM keeps creating offices, and HRIS only references them.
+This decides what HR's assign action calls and what the HRIS database must hold. It should be recorded in the decisions document once chosen.
+Reminders
+• Blocks in the frontend only show or hide UI. HRIS must enforce every Block server-side.
+• OPEN-AUTH-001 (active office context) and OPEN-AUTH-003 (View dependencies) remain unresolved. The frontend renders Blocks exactly as granted and adds no View-implication logic.

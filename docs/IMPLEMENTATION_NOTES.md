@@ -1,3 +1,15 @@
+---
+title: Concord IAM implementation slice: application catalog
+date: 2026-10-21
+tags:
+  - concord/iam
+  - concord/implementation
+aliases:
+  - IAM implementation notes
+  - application catalog implementation
+status: implementation-note
+---
+
 # Concord IAM implementation slice: application catalog
 
 ## Files
@@ -26,3 +38,11 @@ Only authenticated, active IT administrators can access these routes. App keys a
 - Docker could not run because Docker CLI is unavailable in this workspace. Run tests in the project's actual Docker environment before merging.
 
 No database migration or schema change is included.
+
+## Related notes
+
+- [[IAM - Access Model]]: documents this API slice (application catalog administration API).
+- [[iam-authorization-decisions]]: the decision record behind the access model.
+- [[Concord Index]]
+
+> **Verification gap:** this note says PHPUnit could not run in that workspace. The decisions record reports a full IAM suite pass (41 tests, 236 assertions) on 2026-10-19. Neither source says whether `IamAppCatalogTest` was part of that run. Confirm in the project's Docker environment.

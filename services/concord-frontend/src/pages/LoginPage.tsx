@@ -46,7 +46,7 @@ export function LoginPage() {
 
   return (
     <main className="grid min-h-screen bg-background lg:grid-cols-2">
-      <section className="relative hidden min-h-screen overflow-hidden bg-[#090D18] px-12 py-10 text-white lg:flex lg:flex-col lg:justify-between xl:px-20">
+      <section className="relative hidden min-h-screen overflow-hidden bg-[#090D18] px-12 py-14 text-white lg:flex lg:flex-col lg:justify-between xl:px-20">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 opacity-40"
@@ -56,13 +56,13 @@ export function LoginPage() {
           }}
         />
 
-        <div className="relative flex flex-col items-start gap-3">
+        <div className="relative flex translate-y-10 flex-col items-start gap-4 text-4xl">
           <img
             src={concordEmblem}
             alt="Concord emblem"
-            className="h-40 w-40 object-contain object-left"
+            className="-ml-[0.8em] h-auto w-[5em] max-w-none"
           />
-          <span className="text-4xl font-semibold tracking-tight">Concord</span>
+          <span className="font-semibold tracking-tight">Concord</span>
         </div>
 
         <div className="relative max-w-xl space-y-6 py-12">

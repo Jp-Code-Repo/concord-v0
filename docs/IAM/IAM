@@ -1,0 +1,347 @@
+# Concord IAM
+## Identity Domain: Requirements and Decision Notes
+
+**Document status:** Working specification  
+**Scope:** Identity, account provisioning, employee onboarding dependencies, and frontend implementation requirements  
+**Purpose:** Preserve decisions and requirements from the IAM redesign discussion before implementation begins.
+
+---
+
+## 1. Architectural Direction
+
+Concord's Identity and Access Management (IAM) will remain the overarching identity and access foundation of the platform.
+
+The redesign will begin by reviewing and correcting the existing implementation rather than rebuilding the entire application without examining its current architecture.
+
+IAM responsibilities will be discussed and documented separately under:
+1. Identity
+2. Authentication
+3. Roles
+4. Permissions and Authorization
+5. Governance and Supporting Concerns
+
+Laravel Gates, Policies, and Spatie Laravel Permission are potential implementation tools for authorization. Their final configuration and responsibilities will be established during the Roles and Permissions discussions.
+
+## 2. Identity Requirements
+
+### 2.1 User Categories
+
+Concord is intended to support these user categories:
+
+- Employees
+- Students
+- Parents or guardians
+- Visitors
+
+A person may belong to multiple categories or hold multiple institutional capacities simultaneously. These categories must not be treated as mutually exclusive.
+
+Examples include:
+- Teacher and parent
+- Staff and parent
+- Staff, teacher, and parent
+- Teacher and department head
+- Teacher and office-in-charge
+- Principal, teacher, and office-in-charge of the Principal's Office
+
+### 2.2 Basic Identity Information
+
+IAM will store the basic information required to identify users, associate them with Concord accounts, and display their profiles and dashboard information.
+
+Names must be stored as separate components.
+
+**Employee fields**
+- First name
+- Middle name
+- Last name
+- Name suffix
+- Gender
+- Email
+
+Date of birth is excluded from the basic IAM identity record. Detailed personal information belongs in HRIS.
+
+**Student fields**
+- Student number
+- First name
+- Middle name
+- Last name
+- Name suffix
+
+Date of birth is excluded. Detailed student information remains the responsibility of the existing student information system.
+
+**Parent and guardian fields**
+- First name
+- Middle name
+- Last name
+- Name suffix
+- Gender
+- Email
+
+**Visitor fields**
+- First name
+- Middle name
+- Last name
+- Name suffix
+- Gender
+- Email
+
+Exact validation requirements and whether certain fields are optional remain to be finalized.
+
+### 2.3 Employee Classifications, Positions, and Responsibilities
+
+Staff and Teacher are the currently identified primary employee classifications.
+
+An employee may have a primary classification while performing additional duties associated with another function.
+
+Examples:
+- A staff member may temporarily receive a teaching load without changing their primary classification.
+- A teacher may be appointed Department Head while retaining their primary classification as Teacher.
+- Staff positions may include Principal, Registrar, Business Office Manager, and HR Head.
+- Teachers may receive leadership or office-in-charge assignments.
+
+The identity model must distinguish primary classification, institutional position, and additional responsibility.
+
+### 2.4 Assignment History
+
+Concord must retain the history of employee positions and additional responsibilities while identifying currently active assignments.
+
+Examples include:
+- Appointment and replacement of a Department Head.
+- Transfer from one office position to another.
+- Beginning and ending an office-in-charge assignment.
+
+Ending an assignment must not erase its historical record. Historical assignments must not automatically grant current authority.
+
+### 2.5 Employee History
+
+Employee records and relevant employment history must be retained after an employee leaves the institution.
+
+This is necessary for future institutional analytics and reporting.
+
+Employment status and Concord account status must be treated as separate concerns.
+
+### 2.6 Account Status
+
+The following account statuses have been proposed:
+
+- **Active:** The account is enabled for access, subject to authorization.
+- **Deactivated:** The account is inactive, such as after employment ends.
+- **Disabled:** The account is blocked because of an administrative restriction, such as suspension.
+
+The exact status model and transitions remain to be finalized.
+
+A disabled account must remain inaccessible until the required formal reactivation process is completed. Reactivation may require approval from an authorized person and must follow institutional policies.
+
+The existing account identity and historical records must be preserved.
+
+### 2.7 Student Enrollment History
+
+Student identity must remain distinct from school-year-specific enrollment information.
+
+The student number is the required institutional identifier.
+
+Enrollment information must be retained across school years, including:
+- School year
+- Grade level
+- Section
+- Enrollment status
+
+Potential enrollment statuses include enrolled, promoted, retained, transferred out, and stopped. The exact definitions and transitions must be confirmed against institutional terminology.
+
+The latest decision to keep only the current school year's information was withdrawn. The earlier requirement to preserve enrollment history remains in effect.
+
+## 3. Administrator and User Provisioning
+
+### 3.1 ADMINISTRATOR
+
+The envisioned `ADMINISTRATOR` is the highest-authority entity in Concord, with only one Administrator intended to exist.
+
+The Administrator will oversee platform-level functions, including IAM and user management, with possible involvement in HRIS-related administration.
+
+The Administrator's exact technical representation remains undecided. It must still be determined whether `ADMINISTRATOR` is a special account classification, a platform-level role, or another identity concept.
+
+Account recovery, continuity, and the consequences of losing access to the unique Administrator account must be addressed before production deployment.
+
+### 3.2 User Management Module
+
+Concord will provide a User Management module through which the Administrator can manage users and create accounts outside the normal provisioning workflows.
+
+The module must support creating and managing accounts for:
+- Students
+- Parents or guardians
+- Visitors
+
+Employee onboarding follows a separate HR-led process.
+
+### 3.3 Student CSV Import
+
+The existing student information system is the source of student records. Concord will support importing basic student information, potentially through CSV uploads.
+
+The import specification must accommodate:
+- Student number
+- Student name components
+- Parent or guardian names
+- Parent or guardian contact numbers
+- School year
+- Grade level
+- Section
+
+The import must preserve historical enrollment records across school years.
+
+Import validation, duplicate detection, updating existing students, handling missing students, and exact CSV column definitions remain open implementation questions.
+
+### 3.4 Parent and Guardian Management
+
+A student may have multiple parents or guardians, and a parent or guardian may be associated with multiple students.
+
+Parent accounts will initially be created independently by the Administrator. Parent-student relationships will be recorded separately when needed.
+
+Importing parent or guardian information through a student CSV must not automatically create parent accounts or establish relationships.
+
+A future process will be designed to match parents or guardians to students and manage these relationships. This functionality is intentionally deferred.
+
+### 3.5 Visitor Accounts
+
+The Administrator will manually create visitor accounts through User Management.
+
+The account-creation interface must include `Visitor` as an available category.
+
+Automated visitor registration, visitor account expiration, and visitor-specific access policies are outside the currently established scope.
+
+## 4. HRIS Requirements and Dependencies
+
+These notes must be preserved for future HRIS service design. They do not constitute a finalized HRIS architecture.
+
+### 4.1 Employee Onboarding Workflow
+
+The current understanding of the institutional process is:
+
+1. HR meets with the newly hired employee and collects basic information.
+2. A Concord account is created.
+3. The credentials are provided to the employee.
+4. The employee logs in to Concord.
+5. Concord presents an onboarding process with guided steps.
+6. The employee completes their Personal Data Sheet (PDS), potentially organized by category or group.
+7. After submission, onboarding enters a pending-review state.
+8. HR reviews the submitted information and identifies whether it is complete or lacking.
+
+The precise status definitions, review outcomes, and exception handling remain to be determined.
+
+### 4.2 HRIS Data Ownership
+
+HRIS is responsible for detailed employee information, including information collected through the PDS.
+
+IAM stores only the agreed basic identity fields needed for Concord accounts and profile display.
+
+The integration between HRIS employee records and Concord user accounts must be defined during implementation planning.
+
+### 4.3 Employee Classification and Assignment Data
+
+Future HRIS design must accommodate:
+- Primary employee classification
+- Institutional positions
+- Additional responsibilities
+- Temporary teaching loads
+- Department Head assignments
+- Office-in-charge assignments
+- Assignment start and end dates
+- Historical employment and assignment records
+
+### 4.4 Employment and Account Lifecycle
+
+HRIS must retain employee history for analytics and reporting.
+
+Changes to employment status must be handled separately from changes to Concord account status.
+
+When employment ends, the account is deactivated. The exact handling of temporary leave, suspension, resignation, retirement, and planned returns must follow the applicable institutional policies.
+
+A disabled account must not be re-enabled until the formal reactivation process has been completed.
+
+### 4.5 HRIS Decisions Still Needed
+
+- How HR initiates account creation.
+- Whether account creation is manual or automated.
+- How credentials are securely provisioned.
+- How incomplete PDS submissions are returned for correction.
+- Whether onboarding requires multiple approval stages.
+- What access employees receive before onboarding is complete.
+- Which system owns each field and how changes are synchronized.
+
+## 5. Frontend Implementation Backlog
+
+This is the running list of frontend pages, modules, and experiences identified during the IAM discussion. It is not yet a complete UI specification.
+
+### 5.1 Employee Onboarding
+
+- Employee onboarding landing page.
+- Onboarding step navigation.
+- Personal Data Sheet forms organized by category or group.
+- Submission confirmation.
+- Onboarding status display.
+- Pending-review status and HR feedback display.
+
+### 5.2 Administrator Experience
+
+- Administrator dashboard.
+- User Management module.
+- User listing and details.
+- Create and manage user accounts.
+- Account-status management.
+- Student CSV import interface.
+- CSV validation results and import error reporting.
+
+### 5.3 Parent and Guardian Management
+
+Deferred frontend requirements:
+- Parent and guardian relationship management.
+- Parent-to-student linking workflow.
+- Review and management of existing relationships.
+
+These interfaces must be designed after the relationship-matching and management process is defined.
+
+### 5.4 Frontend Items Requiring Further Specification
+
+- What each user category sees after login.
+- How account status affects the login experience.
+- What the Administrator dashboard contains.
+- Whether students, parents, and visitors receive different dashboard layouts.
+- How onboarding restrictions affect module access.
+- How roles and permissions control navigation and page access.
+
+## 6. Immediate Implementation Objective
+
+The immediate goal is to correct the current Concord IAM implementation and prepare a working environment for realistic account and login testing.
+
+Initial implementation targets:
+1. Inspect the existing Concord source code and project conventions.
+2. Review the existing IAM database, authentication flow, models, services, controllers, and seeders.
+3. Revise the identity model based on approved requirements.
+4. Explicitly provision the unique ADMINISTRATOR account.
+5. Prepare representative sample accounts for employees, students, parents or guardians, and visitors.
+6. Implement the agreed basic identity fields without date of birth.
+7. Verify login and account-status behavior.
+8. Test what each user sees after logging in.
+9. Preserve the student enrollment-history requirement.
+10. Keep HRIS and frontend dependencies documented for their appropriate implementation stages.
+
+Implementation must proceed incrementally, with each change verified before moving to the next step.
+
+The existing repository and its conventions remain the source of truth for implementation. Architecture must not be redesigned or conventions changed without explicit approval.
+
+## 7. Outstanding Decisions
+
+The following items must not be treated as finalized architectural decisions:
+
+- Whether ADMINISTRATOR is a special account type or a platform-level role.
+- The final database relationship between person records and user accounts.
+- The final account-status model and transitions.
+- Exact CSV format and import/update behavior.
+- Exact field optionality and validation rules.
+- Parent-student relationship matching and management.
+- Role and permission ownership and implementation using Laravel and Spatie.
+- React/frontend access behavior for each user category.
+- HRIS integration and onboarding automation.
+- Administrator account recovery and continuity.
+
+---
+
+**Document maintenance rule:** When a requirement changes, update the relevant section and explicitly record whether the earlier requirement was replaced, withdrawn, or retained. Preserve the user's explanations and institutional context when refining them into architectural documentation.

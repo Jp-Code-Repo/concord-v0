@@ -6,6 +6,7 @@ use App\Http\Controllers\GrantController;
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\UserCreationController;
 
 // Final URLs are /api/iam/... (Laravel adds the /api prefix).
 Route::prefix('iam')->group(function () {
@@ -44,6 +45,7 @@ Route::prefix('iam')->group(function () {
             Route::get('apps', [AppCatalogController::class, 'index']);
             Route::post('apps', [AppCatalogController::class, 'store']);
             Route::patch('apps/{appId}', [AppCatalogController::class, 'update']);
+            Route::post('users', [UserCreationController::class, 'store']);
         });
 
     // Self-test for edge authentication.

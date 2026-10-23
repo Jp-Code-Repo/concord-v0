@@ -33,22 +33,13 @@ docker compose exec iam php artisan test
 After the first bootstrap, `services/iam/` is an ordinary Laravel app: commit it.
 `scaffold/iam/` is only used when `services/iam/artisan` does not exist yet.
 
-## How a request is authenticated
-
-1. `POST /api/iam/login` -> IAM sets an HTTP-only `concord_session` cookie (random token; only its hash is stored).
-2. For any protected service the edge runs `auth_request` -> IAM `/verify`.
-3. On success the edge passes the user to the service as `CONCORD_USER_ID`. It has no `HTTP_`
-   prefix, so a client cannot forge it by sending a header. Services must only be reachable through the edge.
-4. Services still check the block key for each action; IAM answers "who" and "what may they do".
-
 ## Security notes
 
 - Secrets live only in `.env` (git-ignored); the compose file passes them as environment variables.
 - Only the edge is published. MySQL is bound to 127.0.0.1:3307 for local dev - remove it in production.
 - Login: rate-limited at the edge and in Laravel; one generic error for unknown user, wrong password and disabled account.
 - Disabling an account revokes its sessions and clears the Redis cache immediately.
-- Still to do: HTTPS at the edge (then `COOKIE_SECURE=true`), CSRF posture review when the
-  portal exists, a change-password flow (rotate the seeded admin password), backups.
+
 
 ## Status
 

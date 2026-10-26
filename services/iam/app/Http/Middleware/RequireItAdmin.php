@@ -21,7 +21,7 @@ class RequireItAdmin
 
         if (! $user || ! $user->is_it_admin || $user->status !== 'active') {
             return response()->json([
-                'message' => 'Forbidden. IT Administrator access required.',
+                'message' => 'Forbidden. Concord Administrator access required.',
             ], 403);
         }
 

@@ -2,12 +2,44 @@ import { useState } from "react";
 import { Globe, KeyRound, Save, Settings2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { updateAccountSettings, updatePersonPreferences } from "@/lib/iam";
 
 export function AccountSettings() {
-  const [language, setLanguage] = useState("English");
-  const [timeZone, setTimeZone] = useState("Asia/Manila");
-  const [sessionWarning, setSessionWarning] = useState(true);
+  const { user, refreshSession } = useAuth();
+  const personPreferences = user?.person?.preferences ?? {};
+  const accountSettings = user?.settings ?? {};
+  const [language, setLanguage] = useState(
+    (personPreferences.language as string | undefined) ?? "English",
+  );
+  const [timeZone, setTimeZone] = useState(
+    (personPreferences.timeZone as string | undefined) ?? "Asia/Manila",
+  );
+  const [sessionWarning, setSessionWarning] = useState(
+    (accountSettings.session_warning as boolean | undefined) ?? true,
+  );
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function saveSettings() {
+    setSaving(true);
+    setSaved(false);
+    setSaveError(null);
+
+    try {
+      await updatePersonPreferences({ language, timeZone });
+      await updateAccountSettings({ session_warning: sessionWarning });
+      await refreshSession();
+      setSaved(true);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save account settings.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <section className="overflow-hidden rounded-2xl border bg-card">
@@ -31,7 +63,7 @@ export function AccountSettings() {
                 Login Email
               </label>
               <div className="rounded-lg border bg-muted/30 px-3 py-2.5 text-sm">
-                alex.santos@example.edu
+                {user?.person?.email ?? "No email on file"}
               </div>
             </div>
 
@@ -40,8 +72,8 @@ export function AccountSettings() {
                 Account Status
               </label>
               <div className="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Active · Preview
+                <span className={`h-2 w-2 rounded-full ${user?.status === "active" ? "bg-emerald-500" : "bg-red-500"}`} />
+                {user?.status ?? "Unknown"}
               </div>
             </div>
           </div>
@@ -133,19 +165,22 @@ export function AccountSettings() {
 
         <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            Preview only. Changes are not saved to your account.
+            Regional preferences are stored on your person profile. Session warning is stored with your account settings.
           </p>
 
-          <Button className="gap-2" onClick={() => setSaved(true)}>
+          <Button className="gap-2" onClick={() => void saveSettings()} disabled={saving}>
             <Save className="h-4 w-4" />
-            Save Changes
+            {saving ? "Saving…" : "Save Changes"}
           </Button>
         </div>
 
         {saved && (
           <p role="status" className="text-sm text-blue-600 dark:text-blue-400">
-            Preview preferences updated locally. Nothing was sent to IAM.
+            Account settings saved.
           </p>
+        )}
+        {saveError && (
+          <p role="alert" className="text-sm text-destructive">{saveError}</p>
         )}
       </div>
     </section>

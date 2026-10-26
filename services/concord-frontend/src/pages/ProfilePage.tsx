@@ -3,7 +3,6 @@ import {
   BriefcaseBusiness,
   Building2,
   LockKeyhole,
-  MapPin,
   Pencil,
   Settings,
   ShieldCheck,
@@ -29,19 +28,6 @@ const tabs = [
   { label: "Preferences", icon: LockKeyhole },
 ];
 
-
-const employmentInformation = [
-  [
-    { label: "Employee ID", value: "EMP-2023-0042" },
-    { label: "Position", value: "System Administrator" },
-    { label: "Department", value: "Information Technology Office" },
-  ],
-  [
-    { label: "Employment Type", value: "Regular" },
-    { label: "Date Hired", value: "June 1, 2023" },
-    { label: "Status", value: "Active" },
-  ],
-];
 
 function InformationCard({
   title,
@@ -102,20 +88,16 @@ export function ProfilePage() {
 
   const personalInformation = [
     [
-      { label: "Full Name", value: user?.display_name || user?.username || "" },
-      { label: "Date of Birth", value: "January 15, 1996" },
-      { label: "Gender", value: "Male" },
-      { label: "Civil Status", value: "Single" },
+      { label: "First Name", value: user?.person?.first_name ?? "" },
+      { label: "Middle Name", value: user?.person?.middle_name ?? "Not provided" },
+      { label: "Last Name", value: user?.person?.last_name ?? "" },
+      { label: "Name Suffix", value: user?.person?.name_suffix ?? "Not provided" },
     ],
     [
-      { label: "Nationality", value: "Filipino" },
-      { label: "Phone Number", value: "+63 912 345 6789" },
-      { label: "Email Address", value: user?.email ?? "" },
-      {
-        label: "Address",
-        value:
-          "123 Sampaguita Street, Brgy. San Isidro, Quezon City, Philippines 1100",
-      },
+      { label: "Gender", value: user?.person?.gender ?? "Not provided" },
+      { label: "Email Address", value: user?.person?.email ?? "Not provided" },
+      { label: "Username", value: user?.username ?? "" },
+      { label: "Student Number", value: user?.person?.student_number ?? "Not applicable" },
     ],
   ];
   
@@ -175,15 +157,17 @@ export function ProfilePage() {
 
             <div>
               <h2 className="text-2xl font-bold tracking-tight md:text-3xl">
-                {user?.display_name || user?.username || "Concord User"}
+                {user?.person?.display_name || user?.username || "Concord User"}
               </h2>
-              <p className="mt-1 font-medium">System Administrator</p>
+              <p className="mt-1 font-medium">@{user?.username}</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Information Technology Office
+                {user?.person?.types?.length
+                  ? user.person.types.map((type) => type.replaceAll("_", " ")).join(" · ")
+                  : "No institutional type assigned"}
               </p>
 
               <span className="mt-3 inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                {user?.is_it_admin ? "IT Administrator" : "Concord Account"}
+                {user?.is_it_admin ? "Concord Administrator" : user?.status ?? "Account"}
               </span>
             </div>
           </div>
@@ -191,17 +175,12 @@ export function ProfilePage() {
           <div className="grid gap-4 border-t pt-5 text-sm md:min-w-[300px] md:border-l md:border-t-0 md:pl-6 md:pt-0">
             <div className="flex items-start gap-3">
               <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-              <span className="break-all">{user?.email ?? ""}</span>
+              <span className="break-all">{user?.person?.email ?? ""}</span>
             </div>
 
             <div className="flex items-start gap-3">
               <Building2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-              <span>Information Technology Office</span>
-            </div>
-
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-              <span>Main Campus · Preview</span>
+              <span>{user?.is_it_admin ? "Platform Administrator" : "Concord user account"}</span>
             </div>
           </div>
         </div>
@@ -244,14 +223,16 @@ export function ProfilePage() {
         </InformationCard>
       )}
 
-      {/* Employment */}
+      {/* Employment data belongs to HRIS and is shown only when linked. */}
       {activeTab === "Employment" && (
         <InformationCard
           title="Employment Information"
           icon={BriefcaseBusiness}
           onEdit={() => handleEdit("Employment Information")}
         >
-          <InformationColumns columns={employmentInformation} />
+          <p className="text-sm text-muted-foreground">
+            Employment details are managed by HRIS and will appear here when the employee record is available. This profile does not invent or store employment details in IAM.
+          </p>
         </InformationCard>
       )}
 

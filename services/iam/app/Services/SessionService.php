@@ -82,8 +82,32 @@ class SessionService
         return $payload;
     }
 
-    public function revoke(string $sessionId, string $reason): void
+    /**
+     * Revoke one session.
+     *
+     * Logout already holds the plain token (from the cookie), so it passes it in and
+     * the hash is computed directly - no lookup query. The token hash is part of the
+     * UPDATE's WHERE clause, so a mismatched token can never revoke the wrong row;
+     * in that case (or when no token is given) the original lookup path runs.
+     */
+    public function revoke(string $sessionId, string $reason, ?string $plainToken = null): void
     {
+        if ($plainToken !== null && preg_match('/^[a-f0-9]{64}$/', $plainToken)) {
+            $tokenHash = hash('sha256', $plainToken);
+
+            $updated = DB::table('auth_sessions')
+                ->where('id', $sessionId)
+                ->where('token_hash', $tokenHash)
+                ->whereNull('revoked_at')
+                ->update(['revoked_at' => now(), 'revoked_reason' => $reason]);
+
+            Cache::forget('sess:'.$tokenHash);
+
+            if ($updated > 0) {
+                return;
+            }
+        }
+
         $row = DB::table('auth_sessions')
             ->where('id', $sessionId)->whereNull('revoked_at')
             ->first(['token_hash']);

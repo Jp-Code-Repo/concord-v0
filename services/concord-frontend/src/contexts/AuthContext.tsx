@@ -11,10 +11,11 @@ import {
   IamApiError,
   login as iamLogin,
   logout as iamLogout,
-  type IamAccess,
   type IamSession,
   type IamUser,
+  type IamLegacyApp,
 } from "@/lib/iam";
+
 
 export type AuthStatus =
   | "loading"
@@ -25,11 +26,11 @@ export type AuthStatus =
 export interface AuthContextValue {
   status: AuthStatus;
   user: IamUser | null;
-  access: IamAccess | null;
   error: string | null;
   signIn: (username: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  legacyApps: IamLegacyApp[];
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,19 +42,19 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<IamUser | null>(null);
-  const [access, setAccess] = useState<IamAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [legacyApps, setLegacyApps] = useState<IamLegacyApp[]>([]);
 
   const applySession = useCallback((session: IamSession) => {
     setUser(session.user);
-    setAccess(session.access);
     setStatus("authenticated");
     setError(null);
+    setLegacyApps(session.access?.legacy_apps ?? []);
   }, []);
 
   const clearSession = useCallback(() => {
     setUser(null);
-    setAccess(null);
+    setLegacyApps([]);
   }, []);
 
   const refreshSession = useCallback(async () => {
@@ -90,9 +91,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
 
       try {
-        await iamLogin(username, password);
-
-        const session = await getCurrentUser();
+        // /login already returns the full session payload (same as /me),
+        // so there is no follow-up /me request.
+        const session = await iamLogin(username, password);
         applySession(session);
       } catch (requestError) {
         clearSession();
@@ -134,8 +135,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       value={{
         status,
         user,
-        access,
         error,
+        legacyApps,
         signIn,
         signOut,
         refreshSession,

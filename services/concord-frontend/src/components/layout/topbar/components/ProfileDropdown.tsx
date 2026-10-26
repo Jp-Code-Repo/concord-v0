@@ -91,13 +91,13 @@ export function ProfileDropdown() {
 
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">
-                {user?.display_name ?? user?.username ?? "Concord User"}
+                {user?.person?.display_name ?? user?.username ?? "Concord User"}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {user?.email ?? ""}
+                {user?.person?.email ?? ""}
               </p>
               <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
-                {user?.is_it_admin ? "IT Administrator" : "Concord Account"}
+                {user?.is_it_admin ? "Concord Administrator" : "Concord Account"}
               </p>
             </div>
           </div>

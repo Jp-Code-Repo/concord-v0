@@ -17,30 +17,42 @@ export function Sidebar({ collapsed }: SidebarProps) {
         collapsed ? "w-16" : "w-64"
       }`}
     >
+      {/* CHANGED: Sidebar header with clickable Concord brand */}
       <div
         className={`flex h-16 shrink-0 items-center border-b ${
           collapsed ? "justify-center px-2" : "gap-3 px-3"
         }`}
       >
-        <img
-          src={emblem}
-          alt="Concord emblem"
-          className="h-11 w-11 shrink-0 object-contain"
-        />
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/" })}
+          aria-label="Go to Concord dashboard"
+          title="Go to dashboard"
+          className={`flex min-w-0 items-center rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            collapsed ? "justify-center" : "flex-1 gap-3"
+          }`}
+        >
+          <img
+            src={emblem}
+            alt=""
+            aria-hidden="true"
+            className="h-11 w-11 shrink-0 object-contain"
+          />
 
-        {!collapsed && (
-          <>
+          {!collapsed && (
             <div className="min-w-0 flex-1">
               <div className="concord-wordmark text-sm">CONCORD</div>
               <div className="mt-1 text-xs text-muted-foreground">
                 Dashboard
               </div>
             </div>
+          )}
+        </button>
 
-            <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-              V1.0
-            </span>
-          </>
+        {!collapsed && (
+          <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+            V1.0
+          </span>
         )}
       </div>
 

@@ -20,7 +20,7 @@ services:
   # The only thing published to the network. Serves the portal and routes /api/<service>/.
   edge:
     image: nginx:1.27-alpine
-    container_name: concord-edge
+    container_name: edge
     ports:
       - "80:80"
     volumes:
@@ -30,17 +30,29 @@ services:
     networks: [concord-net]
     restart: unless-stopped
 
-  iam:
+  # Shared base image (PHP + extensions + php.ini). Not run; only built:
+  #   docker compose build php-base
+  php-base:
+    profiles: ["build"]
     build:
       context: ./infra/php
       args:
         UID: ${HOST_UID:-1000}
         GID: ${HOST_GID:-1000}
     image: concord/php:8.3
-    container_name: concord-iam
+
+  iam:
+    build:
+      context: ./services/iam
+    image: concord/iam:dev
+    container_name: iam
     working_dir: /var/www
     volumes:
       - ./services/iam:/var/www
+      # asqueue pattern: keep the image's vendor/ instead of reading it through the
+      # (slow) Windows bind mount. After changing composer.json/lock, rebuild with:
+      #   docker compose up -d --build -V iam
+      - /var/www/vendor
     environment:
       <<: *laravel-env
       APP_NAME: Concord IAM
@@ -61,12 +73,15 @@ services:
 
   mysql:
     image: mysql:8.4
-    container_name: concord-mysql
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    container_name: mysql
+    # --skip-name-resolve: skip a reverse-DNS lookup on every new connection (PHP opens one per request).
+    # Safe here: all grants are 'user'@'%'.
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --skip-name-resolve
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       IAM_DB_PASSWORD: ${IAM_DB_PASSWORD}
       HR_DB_PASSWORD: ${HR_DB_PASSWORD}
+      CONCORD_DB_PASSWORD: ${CONCORD_DB_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
       - ./infra/mysql/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
@@ -82,7 +97,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: concord-redis
+    container_name: redis
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]

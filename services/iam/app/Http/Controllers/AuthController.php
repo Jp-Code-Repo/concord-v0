@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Person;
 use App\Models\User;
 use App\Services\AccessService;
 use App\Services\SessionService;
@@ -15,16 +16,27 @@ class AuthController extends Controller
     /** Valid bcrypt hash, so unknown usernames cost the same time as wrong passwords. */
     private const DUMMY_HASH = '$2y$12$Jgr/PuTRueOHquXLYSXu6uQSyt3kpSEGRXP9oKNbJ6iUiHNkTjYhK';
 
-    public function login(Request $request, SessionService $sessions): JsonResponse
+    public function login(Request $request, SessionService $sessions, AccessService $access): JsonResponse
     {
         $data = $request->validate([
             'username' => 'required|string|max:100',
             'password' => 'required|string|max:200',
         ]);
 
-        $user = User::where('username', $data['username'])
-            ->orWhere('email', $data['username'])
-            ->first();
+        $user = User::where('username', $data['username'])->first();
+
+        // Email is identity data, not an account key. Accept it for login only
+        // when it identifies exactly one person with a linked account.
+        if (! $user) {
+            $people = Person::query()
+                ->where('email', strtolower(trim($data['username'])))
+                ->limit(2)
+                ->get(['id']);
+
+            if ($people->count() === 1) {
+                $user = User::where('person_id', $people->first()->id)->first();
+            }
+        }
 
         $passwordOk = Hash::check($data['password'], $user?->password ?? self::DUMMY_HASH);
 
@@ -32,7 +44,7 @@ class AuthController extends Controller
         if (! $user || ! $passwordOk || $user->status !== 'active') {
             Audit::log('auth.login_failed', $user?->id, $request, meta: [
                 'username' => mb_substr($data['username'], 0, 100),
-                'reason' => ! $user ? 'unknown_user' : ($user->status !== 'active' ? 'disabled' : 'bad_password'),
+                'reason' => ! $user ? 'unknown_user' : ($user->status !== 'active' ? $user->status : 'bad_password'),
             ]);
 
             return response()->json(['message' => 'Invalid credentials.'], 401);
@@ -41,8 +53,15 @@ class AuthController extends Controller
         [$token, $session] = $sessions->create($user, $request);
         Audit::log('auth.login', $user->id, $request, entityType: 'auth_session', entityId: $session->id);
 
+        // Same payload as GET /me (user + access), so the frontend does not have to
+        // make a second request - and pay a second Laravel boot - right after login.
+        $user->load(['person.types', 'person.student']);
+
         return response()
-            ->json(['user' => $this->userPayload($user)])
+            ->json([
+                'user' => $this->userPayload($user),
+                'access' => $access->forUser($user->id, $user->is_it_admin),
+            ])
             ->withCookie(cookie(
                 name: SessionService::COOKIE,
                 value: $token,
@@ -59,7 +78,7 @@ class AuthController extends Controller
     public function logout(Request $request, SessionService $sessions): JsonResponse
     {
         $auth = $request->attributes->get('auth');
-        $sessions->revoke($auth['session_id'], 'logout');
+        $sessions->revoke($auth['session_id'], 'logout', $request->cookie(SessionService::COOKIE));
         Audit::log('auth.logout', $auth['user_id'], $request);
 
         return response()
@@ -70,12 +89,49 @@ class AuthController extends Controller
     public function me(Request $request, AccessService $access): JsonResponse
     {
         $auth = $request->attributes->get('auth');
-        $user = User::findOrFail($auth['user_id']);
+        $user = User::with(['person.types', 'person.student'])->findOrFail($auth['user_id']);
 
         return response()->json([
             'user' => $this->userPayload($user),
             'access' => $access->forUser($user->id, $user->is_it_admin),
         ]);
+    }
+
+    public function updatePreferences(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'preferences' => 'required|array',
+        ]);
+
+        $auth = $request->attributes->get('auth');
+        $user = User::with('person')->findOrFail($auth['user_id']);
+        abort_unless($user->person, 409, 'This account has no linked person identity.');
+
+        $person = $user->person;
+        $person->preferences = array_merge(
+            $person->preferences ?? [],
+            $data['preferences'],
+        );
+        $person->save();
+
+        return response()->json([
+            'preferences' => $person->fresh()->preferences ?? [],
+        ]);
+    }
+
+    public function updateSettings(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'settings' => 'required|array:session_warning',
+            'settings.session_warning' => 'sometimes|boolean',
+        ]);
+
+        $auth = $request->attributes->get('auth');
+        $user = User::findOrFail($auth['user_id']);
+        $user->settings = array_merge($user->settings ?? [], $data['settings']);
+        $user->save();
+
+        return response()->json(['settings' => $user->fresh()->settings ?? []]);
     }
 
     /** Edge auth_request target: 2xx + identity headers, or 401. */
@@ -91,12 +147,28 @@ class AuthController extends Controller
 
     private function userPayload(User $user): array
     {
+        $person = $user->person;
+
         return [
             'id' => $user->id,
+            'person_id' => $user->person_id,
             'username' => $user->username,
-            'email' => $user->email,
-            'display_name' => $user->display_name,
             'is_it_admin' => $user->is_it_admin,
+            'status' => $user->status,
+            'settings' => $user->settings ?? [],
+            'person' => $person ? [
+                'id' => $person->id,
+                'first_name' => $person->first_name,
+                'middle_name' => $person->middle_name,
+                'last_name' => $person->last_name,
+                'name_suffix' => $person->name_suffix,
+                'gender' => $person->gender,
+                'email' => $person->email,
+                'display_name' => $person->display_name,
+                'preferences' => $person->preferences ?? [],
+                'types' => $person->types->pluck('type')->all(),
+                'student_number' => $person->student?->student_number,
+            ] : null,
         ];
     }
 }

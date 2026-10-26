@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Person;
 use App\Models\User;
 use App\Services\SessionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,10 +15,16 @@ class UserCreationTest extends TestCase
 
     private function makeAdmin(): User
     {
-        return User::create([
-            'username' => 'concord-admin',
+        $person = Person::create([
+            'first_name' => 'Concord',
+            'last_name' => 'Administrator',
             'email' => 'admin@example.test',
-            'display_name' => 'Concord Administrator',
+            'preferences' => [],
+        ]);
+
+        return User::create([
+            'person_id' => $person->id,
+            'username' => 'concord-admin',
             'password' => 'correct-horse-battery',
             'status' => 'active',
             'is_it_admin' => true,
@@ -46,17 +53,23 @@ class UserCreationTest extends TestCase
             ->withUnencryptedCookie(SessionService::COOKIE, $token)
             ->postJson('/api/iam/admin/users', [
                 'username' => 'new.employee',
+                'first_name' => 'New',
+                'middle_name' => null,
+                'last_name' => 'Employee',
                 'email' => 'employee@example.test',
-                'display_name' => 'New Employee',
+                'types' => ['employee'],
             ]);
 
         $response->assertCreated()
             ->assertJsonPath('message', 'Account created.')
             ->assertJsonPath('user.username', 'new.employee')
-            ->assertJsonPath('user.email', 'employee@example.test')
+            ->assertJsonPath('person.email', 'employee@example.test')
+            ->assertJsonPath('person.first_name', 'New')
+            ->assertJsonPath('person.types.0', 'employee')
             ->assertJsonPath('user.status', 'active')
             ->assertJsonStructure([
-                'user' => ['id', 'username', 'email', 'display_name', 'status'],
+                'person' => ['id', 'first_name', 'last_name', 'email', 'preferences', 'types'],
+                'user' => ['id', 'person_id', 'username', 'status'],
                 'initial_password',
             ]);
 
@@ -69,9 +82,16 @@ class UserCreationTest extends TestCase
         $this->assertDatabaseHas('users', [
             'id' => $userId,
             'username' => 'new.employee',
-            'email' => 'employee@example.test',
+            'person_id' => $response->json('person.id'),
             'is_it_admin' => false,
             'status' => 'active',
+        ]);
+
+        $this->assertDatabaseHas('people', [
+            'id' => $response->json('person.id'),
+            'first_name' => 'New',
+            'last_name' => 'Employee',
+            'email' => 'employee@example.test',
         ]);
 
         $createdUser = User::findOrFail($userId);

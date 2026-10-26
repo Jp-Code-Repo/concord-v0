@@ -7,7 +7,7 @@ return [
     // Session lifetime in hours (fixed, not sliding).
     'session_hours' => 8,
 
-    // Used only by the seeder to create the first IT administrator.
+    // Used only by the seeder to create the single Concord Administrator.
     'admin' => [
         'username' => env('IAM_ADMIN_USERNAME', 'itadmin'),
         'email' => env('IAM_ADMIN_EMAIL', 'it@concord.local'),

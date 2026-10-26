@@ -3,19 +3,31 @@ import { Bell, LayoutDashboard, Monitor, Palette, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useConcordTheme } from "@/contexts/ThemeContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { updatePersonPreferences } from "@/lib/iam";
 
 type Appearance = "System" | "Light" | "Dark";
 
 export function PreferencesSettings() {
   const { theme, onThemeChange } = useConcordTheme();
+  const { user, refreshSession } = useAuth();
+  const preferences = user?.person?.preferences ?? {};
   const [appearance, setAppearance] = useState<Appearance>(
-    theme === "dark" ? "Dark" : "Light",
+    (preferences.appearance as Appearance | undefined) ??
+      (theme === "dark" ? "Dark" : "Light"),
   );
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [announcementNotifications, setAnnouncementNotifications] =
-    useState(true);
-  const [compactDashboard, setCompactDashboard] = useState(false);
+  const [emailNotifications, setEmailNotifications] = useState(
+    (preferences.emailNotifications as boolean | undefined) ?? true,
+  );
+  const [announcementNotifications, setAnnouncementNotifications] = useState(
+    (preferences.announcementNotifications as boolean | undefined) ?? true,
+  );
+  const [compactDashboard, setCompactDashboard] = useState(
+    (preferences.compactDashboard as boolean | undefined) ?? false,
+  );
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (appearance === "System") {
@@ -36,12 +48,6 @@ export function PreferencesSettings() {
     onThemeChange(appearance === "Dark" ? "dark" : "light");
   }, [appearance, onThemeChange]);
 
-  useEffect(() => {
-    if (appearance !== "System") {
-      setAppearance(theme === "dark" ? "Dark" : "Light");
-    }
-  }, [theme, appearance]);
-
   function handleAppearanceChange(value: Appearance) {
     setAppearance(value);
     setSaved(false);
@@ -50,6 +56,29 @@ export function PreferencesSettings() {
   function toggle(setter: (value: boolean) => void, value: boolean) {
     setter(!value);
     setSaved(false);
+  }
+
+  async function savePreferences() {
+    setSaving(true);
+    setSaved(false);
+    setSaveError(null);
+
+    try {
+      await updatePersonPreferences({
+        appearance,
+        emailNotifications,
+        announcementNotifications,
+        compactDashboard,
+      });
+      await refreshSession();
+      setSaved(true);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to save preferences.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -143,19 +172,22 @@ export function PreferencesSettings() {
 
         <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            Preview only. Preferences are not persisted.
+            Preferences are saved to your Concord person profile.
           </p>
 
-          <Button onClick={() => setSaved(true)} className="gap-2">
+          <Button onClick={() => void savePreferences()} disabled={saving} className="gap-2">
             <Save className="h-4 w-4" />
-            Save Preferences
+            {saving ? "Saving…" : "Save Preferences"}
           </Button>
         </div>
 
         {saved && (
           <p role="status" className="text-sm text-blue-600 dark:text-blue-400">
-            Preferences updated locally. Nothing has been saved to your account.
+            Preferences saved to your Concord profile.
           </p>
+        )}
+        {saveError && (
+          <p role="alert" className="text-sm text-destructive">{saveError}</p>
         )}
       </div>
     </section>

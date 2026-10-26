@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Person;
 use App\Models\User;
 use App\Services\AccessService;
 use App\Services\SessionService;
@@ -27,10 +28,16 @@ class UserManagementTest extends TestCase
         bool $isItAdmin = false,
         string $status = 'active',
     ): User {
-        return User::create([
-            'username' => $username,
+        $person = Person::create([
+            'first_name' => ucfirst($username),
+            'last_name' => 'Test',
             'email' => "{$username}@example.test",
-            'display_name' => $username,
+            'preferences' => [],
+        ]);
+
+        return User::create([
+            'person_id' => $person->id,
+            'username' => $username,
             'password' => 'correct-horse-battery',
             'status' => $status,
             'is_it_admin' => $isItAdmin,

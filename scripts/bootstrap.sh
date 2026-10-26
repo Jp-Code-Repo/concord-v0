@@ -28,7 +28,10 @@ fill_var REDIS_PASSWORD      "$(rand)"
 fill_var IAM_APP_KEY         "base64:$(openssl rand -base64 32)"
 fill_var IAM_ADMIN_PASSWORD  "$(rand)"
 
-echo "==> Building the PHP image"
+echo "==> Building the shared PHP base image"
+docker compose build php-base
+
+echo "==> Building the IAM image (composer dependencies are installed into the image)"
 docker compose build iam
 
 echo "==> Starting MySQL and Redis"

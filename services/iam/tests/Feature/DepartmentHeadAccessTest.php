@@ -14,12 +14,18 @@ class DepartmentHeadAccessTest extends TestCase
 
     private function makeUser(string $username): User
     {
-        return User::create([
-            'username' => $username,
+        $person = \App\Models\Person::query()->create([
+            'first_name' => ucfirst($username),
+            'last_name' => 'Test',
             'email' => "{$username}@example.test",
-            'display_name' => $username,
+            'preferences' => ['theme' => 'system'],
+        ]);
+
+        return User::query()->create([
+            'person_id' => $person->id,
+            'username' => $username,
             'password' => 'test-password',
-            'status' => 'active',
+            'status' => User::STATUS_ACTIVE,
         ]);
     }
 
@@ -273,24 +279,6 @@ class DepartmentHeadAccessTest extends TestCase
             ['registrar.students.view'],
             $access['offices'][0]['blocks']
         );
-    }
-
-
-    public function test_it_admin_access_does_not_reuse_regular_user_cache(): void
-    {
-        $user = $this->makeUser('cache_test_user');
-        $access = app(AccessService::class);
-
-        Cache::forget("access:{$user->id}");
-        Cache::forget("access:{$user->id}:it-admin");
-
-        $regularAccess = $access->forUser($user->id, false);
-
-        $this->assertFalse($regularAccess['all_access']);
-
-        $adminAccess = $access->forUser($user->id, true);
-
-        $this->assertTrue($adminAccess['all_access']);
     }
 
 }

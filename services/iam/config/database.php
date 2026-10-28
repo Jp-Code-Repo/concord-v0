@@ -72,7 +72,9 @@ return [
             'port' => env('DB_PORT', '3306'),
             'database' => env('CONCORD_DB_DATABASE', 'concord'),
             'username' => env('CONCORD_DB_USERNAME', 'concord'),
-            'password' => env('CONCORD_DB_PASSWORD', ''),
+            'password' => env( 'CONCORD_DB_PASSWORD',
+                    env('IAM_DB_PASSWORD', env('DB_PASSWORD', ''))
+                ),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),

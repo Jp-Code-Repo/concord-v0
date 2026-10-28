@@ -30,5 +30,7 @@
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="MAIL_MAILER" value="array"/>
+        <env name="CONCORD_DB_DATABASE" value="concord_platform_test" force="true"/>
+        <env name="CONCORD_DB_USERNAME" value="iam" force="true"/>
     </php>
 </phpunit>

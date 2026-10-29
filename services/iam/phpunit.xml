@@ -32,5 +32,7 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="CONCORD_DB_DATABASE" value="concord_platform_test" force="true"/>
         <env name="CONCORD_DB_USERNAME" value="iam" force="true"/>
+        <server name="DB_DATABASE" value="concord_iam_test" force="true"/>
+        <server name="CONCORD_DB_DATABASE" value="concord_platform_test" force="true"/>
     </php>
 </phpunit>

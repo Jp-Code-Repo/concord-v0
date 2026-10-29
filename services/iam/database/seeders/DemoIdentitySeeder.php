@@ -51,16 +51,6 @@ class DemoIdentitySeeder extends Seeder
                 types: [PersonType::VISITOR],
             );
 
-            $this->seedIdentity(
-                username: 'demo.employee.parent',
-                firstName: 'Jordan',
-                lastName: 'StaffGuardian',
-                email: 'jordan.staffguardian@concord.local',
-                types: [
-                    PersonType::EMPLOYEE,
-                    PersonType::PARENT_GUARDIAN,
-                ],
-            );
         });
 
         $this->command?->info('Demo identity seeding completed.');

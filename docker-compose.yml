@@ -57,12 +57,22 @@ services:
       <<: *laravel-env
       APP_NAME: Concord IAM
       APP_KEY: ${IAM_APP_KEY}
+
+      # IAM's primary database
       DB_DATABASE: concord_iam
       DB_USERNAME: iam
       DB_PASSWORD: ${IAM_DB_PASSWORD}
+
+      # Concord platform database
+      CONCORD_DB_DATABASE: concord
+      CONCORD_DB_USERNAME: concord
+      CONCORD_DB_PASSWORD: ${CONCORD_DB_PASSWORD}
+
       CACHE_PREFIX: iam
-      IAM_ADMIN_USERNAME: ${IAM_ADMIN_USERNAME:-itadmin}
-      IAM_ADMIN_EMAIL: ${IAM_ADMIN_EMAIL:-it@concord.local}
+
+      # Designated Platform Administrator
+      IAM_ADMIN_USERNAME: ${IAM_ADMIN_USERNAME}
+      IAM_ADMIN_EMAIL: ${IAM_ADMIN_EMAIL}
       IAM_ADMIN_PASSWORD: ${IAM_ADMIN_PASSWORD}
       IAM_DEMO_SEED: ${IAM_DEMO_SEED:-false}
     depends_on:

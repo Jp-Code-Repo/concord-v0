@@ -1,5 +1,4 @@
 import { WelcomeBanner } from "@/components/dashboard/WelcomeBanner";
-import { ApplicationsSection } from "@/components/dashboard/ApplicationsSection";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { AnnouncementsSection } from "@/components/dashboard/AnnouncementsSection";
 
@@ -15,11 +14,8 @@ export function HomePage() {
       {/* Welcome banner */}
       <WelcomeBanner />
 
-      {/* Applications and recent activity */}
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(300px,1fr)]">
-        <ApplicationsSection />
-        <RecentActivity />
-      </section>
+      {/* Recent activity */}
+      <RecentActivity />
 
       {/* Announcements */}
       <AnnouncementsSection />

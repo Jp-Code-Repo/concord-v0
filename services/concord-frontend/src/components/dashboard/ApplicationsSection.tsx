@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
 import {
@@ -6,11 +5,9 @@ import {
   ArrowRight,
   BookOpen,
   ChartNoAxesColumn,
-  ChevronDown,
   ClipboardList,
   GraduationCap,
   HeartPulse,
-  LayoutGrid,
   ShieldCheck,
   Users,
   UsersRound,
@@ -19,8 +16,6 @@ import {
 } from "lucide-react";
 
 import type { LucideIcon } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 
 const legacyAppIcons: Record<string, LucideIcon> = {
   books: BookOpen,
@@ -54,84 +49,53 @@ const arrowColors = [
 ];
 
 export function ApplicationsSection() {
-  const [showAll, setShowAll] = useState(false);
   const { legacyApps } = useAuth();
 
-  const visibleApplications = showAll ? legacyApps : legacyApps.slice(0, 4);
+  if (legacyApps.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No legacy applications are currently available.
+      </p>
+    );
+  }
 
   return (
-    <section id="applications" className="min-w-0 rounded-2xl border bg-card">
-      <div className="flex items-center justify-between border-b px-5 py-4">
-        <div className="flex items-center gap-3">
-          <LayoutGrid className="h-5 w-5 text-blue-600" />
-          <h2 className="text-lg font-semibold">Legacy Apps</h2>
-        </div>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+      {legacyApps.map((app, index) => {
+        const Icon = legacyAppIcons[app.icon ?? ""] ?? AppWindow;
+        const colorIndex = index % iconColors.length;
 
-        {legacyApps.length > 4 && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setShowAll((current) => !current)}
-            aria-expanded={showAll}
-            aria-controls="legacy-apps-grid"
+        return (
+          <a
+            key={app.id}
+            href={app.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Open ${app.name} in a new tab`}
+            className="group flex min-h-[205px] flex-col rounded-xl border bg-card p-4 transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:hover:border-blue-900"
           >
-            {showAll ? "Show Less" : "View All"}
-            {showAll ? (
-              <ChevronDown className="h-4 w-4 rotate-180" />
-            ) : (
-              <ArrowRight className="h-4 w-4" />
-            )}
-          </Button>
-        )}
-      </div>
+            <div
+              className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconColors[colorIndex]}`}
+            >
+              <Icon className="h-6 w-6" />
+            </div>
 
-      {legacyApps.length === 0 ? (
-        <p className="p-5 text-sm text-muted-foreground">
-          No legacy applications are currently available.
-        </p>
-      ) : (
-        <div
-          id="legacy-apps-grid"
-          className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2 2xl:grid-cols-4"
-        >
-          {visibleApplications.map((app, index) => {
-            const Icon = legacyAppIcons[app.icon ?? ""] ?? AppWindow;
-            const colorIndex = index % iconColors.length;
+            <h3 className="mt-4 font-semibold">{app.name}</h3>
 
-            return (
-              <article
-                key={app.id}
-                className="group flex min-h-[205px] flex-col rounded-xl border p-4 transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md dark:hover:border-blue-900"
+            <p className="mt-2 text-sm leading-5 text-muted-foreground">
+              {app.description ?? "No description available."}
+            </p>
+
+            <div className="mt-auto flex justify-end pt-4">
+              <span
+                className={`flex h-9 w-9 items-center justify-center rounded-full ${arrowColors[colorIndex]}`}
               >
-                <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-xl ${iconColors[colorIndex]}`}
-                >
-                  <Icon className="h-6 w-6" />
-                </div>
-
-                <h3 className="mt-4 font-semibold">{app.name}</h3>
-
-                <p className="mt-2 text-sm leading-5 text-muted-foreground">
-                  {app.description ?? "No description available."}
-                </p>
-
-                <div className="mt-auto flex justify-end pt-4">
-                  <button
-                    type="button"
-                    aria-label={`${app.name} destination`}
-                    title={app.url}
-                    disabled
-                    className={`flex h-9 w-9 items-center justify-center rounded-full opacity-70 ${arrowColors[colorIndex]}`}
-                  >
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      )}
-    </section>
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </div>
+          </a>
+        );
+      })}
+    </div>
   );
 }

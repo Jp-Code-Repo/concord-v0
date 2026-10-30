@@ -5,6 +5,7 @@ import { ConcordLayout } from "@/components/layout/ConcordLayout";
 import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ProfilePage } from "@/pages/ProfilePage";
+import { LegacyAppsPage } from "@/pages/LegacyAppsPage";
 
 export const concordRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -28,4 +29,10 @@ export const profileRoute = createRoute({
   getParentRoute: () => concordRoute,
   path: "/profile",
   component: ProfilePage,
+});
+
+export const legacyAppsRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/legacy-apps",
+  component: LegacyAppsPage,
 });

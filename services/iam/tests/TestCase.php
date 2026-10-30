@@ -10,6 +10,13 @@ abstract class TestCase extends BaseTestCase
 {
     protected function setUpTraits(): array
     {
+        if (app()->environment('testing')) {
+            config([
+                'database.connections.concord_platform.password' =>
+                    config('database.connections.mysql.password'),
+            ]);
+        }
+
         if (! RefreshDatabaseState::$migrated) {
             Schema::connection('concord_platform')
                 ->dropIfExists('legacy_apps');

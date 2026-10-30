@@ -18,6 +18,7 @@
         </include>
     </source>
     <php>
+    
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="DB_CONNECTION" value="mysql" force="true"/>
         <env name="DB_HOST" value="mysql" force="true"/>
@@ -25,14 +26,19 @@
         <env name="DB_DATABASE" value="concord_iam_test" force="true"/>
         <env name="DB_USERNAME" value="iam" force="true"/>
         <env name="CACHE_STORE" value="array" force="true"/>
-        <env name="QUEUE_CONNECTION" value="sync" force="true"/>    
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="CONCORD_DB_DATABASE" value="concord_platform_test" force="true"/>
         <env name="CONCORD_DB_USERNAME" value="iam" force="true"/>
+
         <server name="DB_DATABASE" value="concord_iam_test" force="true"/>
         <server name="CONCORD_DB_DATABASE" value="concord_platform_test" force="true"/>
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="DB_USERNAME" value="iam" force="true"/>
+        <server name="CONCORD_DB_USERNAME" value="iam" force="true"/>
+
     </php>
 </phpunit>

@@ -9,8 +9,8 @@ return [
 
     // Used only by the seeder to create the single Concord Administrator.
     'admin' => [
-        'username' => env('IAM_ADMIN_USERNAME', 'itadmin'),
-        'email' => env('IAM_ADMIN_EMAIL', 'it@concord.local'),
+        'username' => env('IAM_ADMIN_USERNAME'),
+        'email' => env('IAM_ADMIN_EMAIL'),
         'password' => env('IAM_ADMIN_PASSWORD'),
     ],
     

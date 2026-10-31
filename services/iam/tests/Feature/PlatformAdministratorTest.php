@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Middleware\RequireItAdmin;
 use App\Models\Person;
 use App\Models\PlatformAdministrator;
 use App\Models\User;
 use App\Services\PlatformAdministratorService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\TestCase;
 
 class PlatformAdministratorTest extends TestCase
@@ -112,6 +114,42 @@ class PlatformAdministratorTest extends TestCase
         $this->expectException(QueryException::class);
 
         $administrator->delete();
+    }
+
+    public function test_admin_middleware_uses_the_designation_instead_of_the_legacy_flag(): void
+    {
+        $legacyFlagUser = $this->createUser('legacy-flag-admin', true);
+        $designatedUser = $this->createUser('designated-admin', false);
+
+        $this->createDesignation($designatedUser);
+
+        $middleware = app(RequireItAdmin::class);
+
+        // A legacy admin flag must not grant Administrator access.
+        $legacyRequest = Request::create('/api/iam/admin/users', 'GET');
+        $legacyRequest->attributes->set('auth', [
+            'user_id' => $legacyFlagUser->id,
+        ]);
+
+        $legacyResponse = $middleware->handle(
+            $legacyRequest,
+            fn ($request) => response()->json(['message' => 'Authorized.'])
+        );
+
+        $this->assertSame(403, $legacyResponse->getStatusCode());
+
+        // The designated Administrator must be authorized even without the legacy flag.
+        $designatedRequest = Request::create('/api/iam/admin/users', 'GET');
+        $designatedRequest->attributes->set('auth', [
+            'user_id' => $designatedUser->id,
+        ]);
+
+        $designatedResponse = $middleware->handle(
+            $designatedRequest,
+            fn ($request) => response()->json(['message' => 'Authorized.'])
+        );
+
+        $this->assertSame(200, $designatedResponse->getStatusCode());
     }
 
     private function createDesignation(User $user): PlatformAdministrator

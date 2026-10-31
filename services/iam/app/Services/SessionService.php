@@ -36,7 +36,15 @@ class SessionService
         return [$plain, $session];
     }
 
-    /** @return array{session_id: string, user_id: string, is_it_admin: bool, expires_at: int}|null */
+    /**
+     * @return array{
+     *     session_id: string,
+     *     user_id: string,
+     *     is_it_admin: bool,
+     *     must_change_password: bool,
+     *     expires_at: int
+     * }|null
+     */
     public function resolve(?string $plain): ?array
     {
         if (! $plain || ! preg_match('/^[a-f0-9]{64}$/', $plain)) {
@@ -45,6 +53,13 @@ class SessionService
 
         $key = 'sess:'.hash('sha256', $plain);
         $payload = Cache::get($key);
+
+        // Discard older cached payloads created before the password-change
+        // requirement was added.
+        if ($payload !== null && ! array_key_exists('must_change_password', $payload)) {
+            Cache::forget($key);
+            $payload = null;
+        }
 
         if ($payload === null) {
             $row = DB::table('auth_sessions')
@@ -57,6 +72,7 @@ class SessionService
                     'auth_sessions.id as session_id',
                     'users.id as user_id',
                     'users.is_it_admin',
+                    'users.must_change_password',
                     'auth_sessions.expires_at',
                 ]);
 
@@ -68,8 +84,10 @@ class SessionService
                 'session_id' => $row->session_id,
                 'user_id' => $row->user_id,
                 'is_it_admin' => (bool) $row->is_it_admin,
+                'must_change_password' => (bool) $row->must_change_password,
                 'expires_at' => Carbon::parse($row->expires_at)->timestamp,
             ];
+
             Cache::put($key, $payload, self::CACHE_TTL);
         }
 
@@ -109,7 +127,8 @@ class SessionService
         }
 
         $row = DB::table('auth_sessions')
-            ->where('id', $sessionId)->whereNull('revoked_at')
+            ->where('id', $sessionId)
+            ->whereNull('revoked_at')
             ->first(['token_hash']);
 
         if (! $row) {
@@ -126,7 +145,8 @@ class SessionService
     public function revokeAllForUser(string $userId, string $reason): void
     {
         $rows = DB::table('auth_sessions')
-            ->where('user_id', $userId)->whereNull('revoked_at')
+            ->where('user_id', $userId)
+            ->whereNull('revoked_at')
             ->get(['id', 'token_hash']);
 
         if ($rows->isEmpty()) {
@@ -135,6 +155,52 @@ class SessionService
 
         DB::table('auth_sessions')->whereIn('id', $rows->pluck('id'))
             ->update(['revoked_at' => now(), 'revoked_reason' => $reason]);
+
+        foreach ($rows as $row) {
+            Cache::forget('sess:'.$row->token_hash);
+        }
+    }
+
+    /**
+     * Forget the cached payload for a session token.
+     *
+     * Used after a password change so the current session reloads its
+     * updated authentication state on the next request.
+     */
+    public function forgetCacheForToken(?string $plainToken): void
+    {
+        if (! $plainToken || ! preg_match('/^[a-f0-9]{64}$/', $plainToken)) {
+            return;
+        }
+
+        Cache::forget('sess:'.hash('sha256', $plainToken));
+    }
+
+    /**
+     * Revoke every active session for a user except the current session.
+     * Used after a successful password change so the current device stays signed in.
+     */
+    public function revokeOtherSessionsForUser(
+        string $userId,
+        string $currentSessionId,
+        string $reason
+    ): void {
+        $rows = DB::table('auth_sessions')
+            ->where('user_id', $userId)
+            ->where('id', '!=', $currentSessionId)
+            ->whereNull('revoked_at')
+            ->get(['id', 'token_hash']);
+
+        if ($rows->isEmpty()) {
+            return;
+        }
+
+        DB::table('auth_sessions')
+            ->whereIn('id', $rows->pluck('id'))
+            ->update([
+                'revoked_at' => now(),
+                'revoked_reason' => $reason,
+            ]);
 
         foreach ($rows as $row) {
             Cache::forget('sess:'.$row->token_hash);

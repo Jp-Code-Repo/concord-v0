@@ -78,6 +78,7 @@ class UserCreationService
                 'person_id' => $person->id,
                 'username' => $username,
                 'password' => $initialPassword,
+                'must_change_password' => true,
                 'status' => User::STATUS_ACTIVE,
                 'is_it_admin' => false,
             ]);
@@ -134,9 +135,10 @@ class UserCreationService
                 'person_id' => $person->id,
                 'username' => $username,
                 'password' => $initialPassword,
+                'must_change_password' => true,
                 'status' => User::STATUS_ACTIVE,
                 'is_it_admin' => false,
-            ]);
+            ]);     
         });
 
         return [

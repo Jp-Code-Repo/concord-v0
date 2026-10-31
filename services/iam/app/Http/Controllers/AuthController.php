@@ -9,6 +9,7 @@ use App\Services\SessionService;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -60,7 +61,9 @@ class AuthController extends Controller
         return response()
             ->json([
                 'user' => $this->userPayload($user),
-                'access' => $access->forUser($user->id, $user->is_it_admin),
+                'access' => $user->must_change_password
+                    ? null
+                    : $access->forUser($user->id, $user->is_it_admin),
             ])
             ->withCookie(cookie(
                 name: SessionService::COOKIE,
@@ -93,7 +96,60 @@ class AuthController extends Controller
 
         return response()->json([
             'user' => $this->userPayload($user),
-            'access' => $access->forUser($user->id, $user->is_it_admin),
+            'access' => $user->must_change_password
+                ? null
+                : $access->forUser($user->id, $user->is_it_admin),
+        ]);
+    }
+
+    public function changePassword(Request $request, SessionService $sessions): JsonResponse
+    {
+        $data = $request->validate([
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:12|confirmed',
+        ]);
+
+        $auth = $request->attributes->get('auth');
+        $user = User::findOrFail($auth['user_id']);
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            return response()->json([
+                'message' => 'The current password is incorrect.',
+                'errors' => [
+                    'current_password' => [
+                        'The current password is incorrect.',
+                    ],
+                ],
+            ], 422);
+        }
+
+        DB::transaction(function () use ($data, $user, $auth, $request, $sessions) {
+            // The User model's hashed cast handles password hashing.
+            $user->password = $data['new_password'];
+            $user->must_change_password = false;
+            $user->save();
+
+            // Keep this device signed in. Revoke every other active session.
+            $sessions->revokeOtherSessionsForUser(
+                $user->id,
+                $auth['session_id'],
+                'password_changed',
+            );
+
+            Audit::log('auth.password_changed', $user->id, $request, meta: [
+                'other_sessions_revoked' => true,
+            ]);
+        });
+
+        // SessionAuth caches the session payload. Clear this device's cached
+        // payload so its next request sees must_change_password = false.
+        $sessions->forgetCacheForToken(
+            $request->cookie(SessionService::COOKIE),
+        );
+
+        return response()->json([
+            'message' => 'Password changed successfully.',
+            'must_change_password' => false,
         ]);
     }
 
@@ -155,6 +211,7 @@ class AuthController extends Controller
             'username' => $user->username,
             'is_it_admin' => $user->is_it_admin,
             'status' => $user->status,
+            'must_change_password' => (bool) $user->must_change_password,
             'settings' => $user->settings ?? [],
             'person' => $person ? [
                 'id' => $person->id,

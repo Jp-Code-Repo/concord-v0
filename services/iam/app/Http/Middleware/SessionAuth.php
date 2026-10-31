@@ -21,6 +21,23 @@ class SessionAuth
 
         $request->attributes->set('auth', $auth);
 
+        if ($auth['must_change_password'] ?? false) {
+            $allowedRequests = (
+                $request->isMethod('post')
+                && (
+                    $request->is('api/iam/me/password')
+                    || $request->is('api/iam/logout')
+                )
+            );
+
+            if (! $allowedRequests) {
+                return response()->json([
+                    'message' => 'You must change your password before accessing this resource.',
+                    'code' => 'PASSWORD_CHANGE_REQUIRED',
+                ], 403);
+            }
+        }
+
         return $next($request);
     }
 }

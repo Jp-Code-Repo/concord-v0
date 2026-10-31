@@ -26,11 +26,13 @@ class User extends Model
         'administrator_key',
         'disabled_at',
         'deactivated_at',
+        'must_change_password',
         'settings',
     ];
 
     protected $hidden = [
         'password',
+        'must_change_password',
     ];
 
     protected function casts(): array
@@ -38,6 +40,7 @@ class User extends Model
         return [
             'password' => 'hashed',
             'is_it_admin' => 'boolean',
+            'must_change_password' => 'boolean',
             'disabled_at' => 'datetime',
             'deactivated_at' => 'datetime',
             'settings' => 'array',

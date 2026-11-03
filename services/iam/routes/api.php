@@ -7,6 +7,7 @@ use App\Http\Controllers\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LegacyAppController;
+use App\Http\Controllers\LegacyAppGrantSetController;
 
 // Final URLs are /api/iam/... (Laravel adds the /api prefix).
 Route::prefix('iam')->group(function () {
@@ -36,8 +37,17 @@ Route::prefix('iam')->group(function () {
         Route::post('users/{user}/reinstate', [UserManagementController::class, 'reinstate']);
         Route::post('users/{user}/disable', [UserManagementController::class, 'disable']);
         Route::post('users/{user}/deactivate', [UserManagementController::class, 'deactivate']);
+
         Route::get('students/{studentId}/enrollments', [StudentEnrollmentController::class, 'index']);
         Route::post('students/{studentId}/enrollments', [StudentEnrollmentController::class, 'store']);
+        
+         // Legacy App Grant Sets
+        Route::get('legacy-apps/grant-sets', [LegacyAppGrantSetController::class, 'index']);
+        Route::post('legacy-apps/grant-sets', [LegacyAppGrantSetController::class, 'store']);
+        Route::get('legacy-apps/grant-sets/{grantSet}', [LegacyAppGrantSetController::class, 'show']);
+        Route::patch('legacy-apps/grant-sets/{grantSet}', [LegacyAppGrantSetController::class, 'update']);
+        Route::post('legacy-apps/grant-sets/{grantSet}/archive', [LegacyAppGrantSetController::class, 'archive']);
+        Route::post('legacy-apps/grant-sets/{grantSet}/restore', [LegacyAppGrantSetController::class, 'restore']);
     });
 
     Route::get('edge-check', function (Request $request) {

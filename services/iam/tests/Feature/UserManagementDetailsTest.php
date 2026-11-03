@@ -11,10 +11,12 @@ use App\Services\SessionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 
 class UserManagementDetailsTest extends TestCase
 {
     use RefreshDatabase;
+    
 
     public function test_administrator_can_view_user_details(): void
     {
@@ -118,6 +120,9 @@ class UserManagementDetailsTest extends TestCase
 
     private function administratorCookie(User $admin): string
     {
+          // NEW: This test class does not test login rate limiting.
+        $this->withoutMiddleware(ThrottleRequests::class);
+        
         $response = $this->postJson('/api/iam/login', [
             'username' => $admin->username,
             'password' => 'test-password',

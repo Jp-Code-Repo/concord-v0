@@ -24,4 +24,15 @@ class LegacyAppGrantSet extends Model
     {
         return $this->hasMany(LegacyAppGrantSetItem::class, 'grant_set_id');
     }
+
+    /**
+     * Historical applications of this Grant Set to users.
+     */
+    public function applicationEvents(): HasMany
+    {
+        return $this->hasMany(
+            LegacyAppGrantSetApplicationEvent::class,
+            'grant_set_id'
+        );
+    }
 }

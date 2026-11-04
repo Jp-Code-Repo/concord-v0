@@ -286,6 +286,32 @@ class LegacyAppGrantServiceTest extends TestCase
         }
     }
 
+    public function test_designated_administrator_can_read_users_current_application_access(): void
+    {
+        $administrator = $this->createUser('access-read-admin');
+        $target = $this->createUser('access-read-target');
+
+        $this->createDesignation($administrator);
+
+        $activeAppId = $this->createLegacyApp();
+        $inactiveAppId = $this->createLegacyApp(false);
+
+        $service = app(LegacyAppGrantService::class);
+
+        $service->grant($target, $activeAppId, $administrator);
+        $service->grant($target, $inactiveAppId, $administrator);
+
+        $result = $service->getUserAccess($target, $administrator);
+
+        $this->assertCount(1, $result['applications']);
+        $this->assertSame($activeAppId, $result['applications'][0]['id']);
+        $this->assertSame(
+            LegacyAppGrantEvent::SOURCE_INDIVIDUAL,
+            $result['applications'][0]['grant_source'],
+        );
+        $this->assertCount(0, $result['grant_sets']);
+    }
+
     private function createUser(string $username): User
     {
         $person = Person::query()->create([

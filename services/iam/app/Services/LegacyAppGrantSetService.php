@@ -10,6 +10,11 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
+
+use App\Models\LegacyAppGrantEvent;
+use App\Models\LegacyAppGrantSetApplicationEvent;
+use App\Models\UserLegacyAppGrant;
+
 class LegacyAppGrantSetService
 {
     public function __construct(

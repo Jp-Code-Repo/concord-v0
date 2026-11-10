@@ -2,6 +2,10 @@
 
 Last updated: 2026-10-31
 Current phase: Backend implementation. Milestones 1, 2, and 3 complete; Milestone 4 is next.
+
+Last updated: 2026-11-04
+Current phase: Backend implementation. Milestones 1–5 complete; Milestone 6 is in progress.
+
 Main roadmap
 - [x] Inspect supplied working rules and approved requirements.
 - [x] Audit the v0.5 IAM source against the approved requirements.
@@ -10,8 +14,8 @@ Main roadmap
 - [x] Step 1: Replace legacy-flag Administrator authorization with singleton designation authority and add regression tests.
 - [x] Step 2: Add force-password-change persistence, endpoint, and session gate.
 - [x] Step 3: Complete User Management APIs and account lifecycle.
-- [ ] Step 4: Add Legacy Apps grant-period and immutable event persistence. ← Current
-- [ ] Step 5: Implement Grant Set lifecycle and archive/restore.
+- [x] Step 4: Add Legacy Apps grant-period and immutable event persistence. ← Current
+- [x] Step 5: Implement Grant Set lifecycle and archive/restore.
 - [ ] Step 6: Implement individual access read/save.
 - [ ] Step 7: Implement additive Grant Set application and history summaries.
 - [ ] Step 8: Implement additive Batch Assign.
@@ -21,6 +25,7 @@ Main roadmap
 - [ ] Step 12: Implement User Management frontend.
 - [ ] Step 13: Implement Legacy Apps Access frontend.
 - [ ] Step 14: Complete frontend regression and end-to-end verification.
+
 Guardrails
 - User Management and Legacy Apps Access remain separate features.
 - The singleton platform_administrator designation is the only platform Administrator authority.
@@ -28,7 +33,8 @@ Guardrails
 - GrantController (office/Block grants) and AppCatalogController (internal apps/groups/Blocks) are not the external Legacy Apps feature.
 - Individual grants are authoritative; Grant Sets are templates and historical context.
 - Applying sets and batch assignments are additive. No implicit revocation.
-- Inactive apps cannot be newly granted but remain in historical configurations.
+- The Administrator may individually grant an inactive app. It remains unavailable until reactivated.
+- Applying a Grant Set does not create a grant for an inactive app. Inactive apps remain in historical configurations.
 - No permanent user deletion, delegated administrators, HRIS integration, or roles/permissions redesign.
 - Frontend API integration waits for verified backend contracts.
 Implementation checkpoint (2026-10-31)
@@ -70,6 +76,7 @@ Next milestone
 Milestone 4: Legacy Apps persistence. Add grant-period and immutable access-event persistence.
 
 Keep the approved boundary: IAM owns platform identity and access grants; business services own module-specific record-level authorization.
+
 Historical source-review checkpoint
 The following notes preserve the original roadmap's v0.5 source-review checkpoint for traceability. They describe the earlier review state and are superseded by the verified implementation status above. They must not be used as a description of the current implementation.
 

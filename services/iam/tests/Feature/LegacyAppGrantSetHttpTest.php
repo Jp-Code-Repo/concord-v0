@@ -2,17 +2,21 @@
 
 namespace Tests\Feature;
 
+use App\Models\LegacyAppGrantEvent;
+use App\Models\LegacyAppGrantSetApplicationEvent;
 use App\Models\Person;
 use App\Models\PlatformAdministrator;
 use App\Models\User;
+use App\Models\UserLegacyAppGrant;
 use App\Services\SessionService;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
-use Illuminate\Routing\Middleware\ThrottleRequests;
 
 class LegacyAppGrantSetHttpTest extends TestCase
 {
@@ -181,21 +185,21 @@ class LegacyAppGrantSetHttpTest extends TestCase
                 'name' => 'Library Staff',
             ]);
 
-            // Archived details are hidden by default.
-            $this->request(
-                'GET',
-                "/api/iam/admin/legacy-apps/grant-sets/{$grantSetId}",
-                $cookie,
-            )->assertNotFound();
+        // Archived details are hidden by default.
+        $this->request(
+            'GET',
+            "/api/iam/admin/legacy-apps/grant-sets/{$grantSetId}",
+            $cookie,
+        )->assertNotFound();
 
-            // Administrator can retrieve archived details explicitly.
-            $this->request(
-                'GET',
-                "/api/iam/admin/legacy-apps/grant-sets/{$grantSetId}?include_archived=1",
-                $cookie,
-            )->assertOk()
-                ->assertJsonPath('data.id', $grantSetId)
-                ->assertJsonPath('data.name', 'Library Staff');
+        // Administrator can retrieve archived details explicitly.
+        $this->request(
+            'GET',
+            "/api/iam/admin/legacy-apps/grant-sets/{$grantSetId}?include_archived=1",
+            $cookie,
+        )->assertOk()
+            ->assertJsonPath('data.id', $grantSetId)
+            ->assertJsonPath('data.name', 'Library Staff');
 
         $restore = $this->request(
             'POST',
@@ -255,6 +259,194 @@ class LegacyAppGrantSetHttpTest extends TestCase
             ]);
     }
 
+    public function test_designated_administrator_can_apply_grant_set_to_a_user(): void
+    {
+        $admin = $this->createUser('grant-set-apply-admin');
+        $target = $this->createUser('grant-set-apply-target');
+
+        $this->designateAdministrator($admin);
+
+        $cookie = $this->login($admin);
+        $appId = $this->createLegacyApp('Student Portal');
+
+        $create = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/grant-sets',
+            $cookie,
+            [
+                'name' => 'Student Access',
+                'description' => 'Student applications',
+                'legacy_app_ids' => [$appId],
+            ],
+        );
+
+        $create->assertCreated();
+
+        $grantSetId = $create->json('data.id');
+
+        $response = $this->request(
+            'POST',
+            "/api/iam/admin/users/{$target->id}/legacy-apps/grant-sets/{$grantSetId}/apply",
+            $cookie,
+        );
+
+        $response->assertCreated()
+            ->assertJsonPath('data.grant_set_id', $grantSetId)
+            ->assertJsonPath('data.user_id', $target->id)
+            ->assertJsonPath('data.actor_id', $admin->id)
+            ->assertJsonPath('data.legacy_app_ids', [$appId]);
+
+        $this->assertDatabaseHas('user_legacy_app_grants', [
+            'user_id' => $target->id,
+            'legacy_app_id' => $appId,
+            'revoked_at' => null,
+        ]);
+
+        $this->assertDatabaseHas('legacy_app_grant_events', [
+            'event_type' => LegacyAppGrantEvent::EVENT_GRANTED,
+            'source' => LegacyAppGrantEvent::SOURCE_GRANT_SET,
+        ]);
+
+        $this->assertDatabaseHas('legacy_app_grant_set_application_events', [
+            'grant_set_id' => $grantSetId,
+            'user_id' => $target->id,
+            'actor_id' => $admin->id,
+        ]);
+
+        $this->assertSame(
+            1,
+            LegacyAppGrantSetApplicationEvent::query()
+                ->where('grant_set_id', $grantSetId)
+                ->where('user_id', $target->id)
+                ->count(),
+        );
+
+        $this->assertSame(
+            1,
+            UserLegacyAppGrant::query()
+                ->where('user_id', $target->id)
+                ->where('legacy_app_id', $appId)
+                ->whereNull('revoked_at')
+                ->count(),
+        );
+    }
+
+    public function test_ordinary_user_cannot_apply_grant_set(): void
+    {
+        $admin = $this->createUser('grant-set-apply-admin');
+        $ordinaryUser = $this->createUser('grant-set-apply-ordinary');
+        $target = $this->createUser('grant-set-apply-target');
+
+        $this->designateAdministrator($admin);
+
+        $adminCookie = $this->login($admin);
+        $ordinaryCookie = $this->login($ordinaryUser);
+
+        $appId = $this->createLegacyApp('Student Portal');
+
+        $create = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/grant-sets',
+            $adminCookie,
+            [
+                'name' => 'Student Access',
+                'description' => null,
+                'legacy_app_ids' => [$appId],
+            ],
+        );
+
+        $create->assertCreated();
+
+        $grantSetId = $create->json('data.id');
+
+        $this->request(
+            'POST',
+            "/api/iam/admin/users/{$target->id}/legacy-apps/grant-sets/{$grantSetId}/apply",
+            $ordinaryCookie,
+        )->assertForbidden();
+    }
+
+    public function test_designated_administrator_can_retrieve_user_legacy_app_access_and_grant_set_history(): void
+    {
+        $admin = $this->createUser('legacy-access-admin');
+        $target = $this->createUser('legacy-access-target');
+
+        $this->designateAdministrator($admin);
+
+        $cookie = $this->login($admin);
+        $appId = $this->createLegacyApp('Student Portal');
+
+        $create = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/grant-sets',
+            $cookie,
+            [
+                'name' => 'Student Access',
+                'description' => 'Student applications',
+                'legacy_app_ids' => [$appId],
+            ],
+        );
+
+        $create->assertCreated();
+
+        $grantSetId = $create->json('data.id');
+
+        $apply = $this->request(
+            'POST',
+            "/api/iam/admin/users/{$target->id}/legacy-apps/grant-sets/{$grantSetId}/apply",
+            $cookie,
+        );
+
+        $apply->assertCreated();
+
+        $response = $this->request(
+            'GET',
+            "/api/iam/admin/users/{$target->id}/legacy-apps",
+            $cookie,
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('data.applications.0.id', $appId)
+            ->assertJsonPath('data.applications.0.name', 'Student Portal')
+            ->assertJsonPath('data.applications.0.grant_source', LegacyAppGrantEvent::SOURCE_GRANT_SET)
+            ->assertJsonPath('data.grant_sets.0.grant_set_id', $grantSetId)
+            ->assertJsonPath('data.grant_sets.0.name', 'Student Access');
+
+        $this->assertCount(1, $response->json('data.applications'));
+        $this->assertCount(1, $response->json('data.grant_sets'));
+    }
+
+    public function test_ordinary_user_cannot_retrieve_another_users_legacy_app_access(): void
+    {
+        $admin = $this->createUser('legacy-access-admin');
+        $ordinaryUser = $this->createUser('legacy-access-ordinary');
+        $target = $this->createUser('legacy-access-target');
+
+        $this->designateAdministrator($admin);
+
+        $adminCookie = $this->login($admin);
+        $ordinaryCookie = $this->login($ordinaryUser);
+
+        $response = $this->request(
+            'GET',
+            "/api/iam/admin/users/{$target->id}/legacy-apps",
+            $ordinaryCookie,
+        );
+
+        $response->assertForbidden();
+    }
+
+    public function test_unauthenticated_user_cannot_retrieve_legacy_app_access(): void
+    {
+        $target = $this->createUser('legacy-access-target');
+
+        $response = $this->getJson(
+            "/api/iam/admin/users/{$target->id}/legacy-apps",
+        );
+
+        $response->assertUnauthorized();
+    }
+
     private function createUser(string $username): User
     {
         $person = Person::query()->create([
@@ -281,10 +473,9 @@ class LegacyAppGrantSetHttpTest extends TestCase
 
     private function login(User $user): string
     {
-
         // This test class does not test login rate limiting.
         $this->withoutMiddleware(ThrottleRequests::class);
-        
+
         $response = $this->postJson('/api/iam/login', [
             'username' => $user->username,
             'password' => 'test-password',
@@ -307,7 +498,7 @@ class LegacyAppGrantSetHttpTest extends TestCase
     {
         $id = (string) Str::ulid();
 
-        \Illuminate\Support\Facades\DB::connection('concord_platform')
+        DB::connection('concord_platform')
             ->table('legacy_apps')
             ->insert([
                 'id' => $id,

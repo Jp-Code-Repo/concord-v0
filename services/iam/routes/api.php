@@ -8,9 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\LegacyAppController;
 use App\Http\Controllers\LegacyAppGrantSetController;
+use App\Http\Controllers\LegacyAppAccessController;
 
-// Final URLs are /api/iam/... (Laravel adds the /api prefix).
+
 Route::prefix('iam')->group(function () {
+
     Route::post('login', [AuthController::class, 'login'])
         ->middleware('throttle:10,1');
 
@@ -48,6 +50,8 @@ Route::prefix('iam')->group(function () {
         Route::patch('legacy-apps/grant-sets/{grantSet}', [LegacyAppGrantSetController::class, 'update']);
         Route::post('legacy-apps/grant-sets/{grantSet}/archive', [LegacyAppGrantSetController::class, 'archive']);
         Route::post('legacy-apps/grant-sets/{grantSet}/restore', [LegacyAppGrantSetController::class, 'restore']);
+        Route::post( 'users/{user}/legacy-apps/grant-sets/{grantSet}/apply',  [LegacyAppGrantSetController::class, 'apply']);
+        Route::get( 'users/{user}/legacy-apps', [LegacyAppAccessController::class, 'show'] );
     });
 
     Route::get('edge-check', function (Request $request) {
@@ -57,4 +61,5 @@ Route::prefix('iam')->group(function () {
             ? response()->json(['user_id' => $userId])
             : response()->json(['message' => 'No identity from the edge.'], 401);
     });
+
 });

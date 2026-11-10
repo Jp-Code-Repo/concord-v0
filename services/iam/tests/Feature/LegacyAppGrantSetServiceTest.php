@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
+use App\Models\LegacyAppGrantEvent;
+use App\Models\LegacyAppGrantSetApplicationEvent;
+use App\Models\UserLegacyAppGrant;
 
 class LegacyAppGrantSetServiceTest extends TestCase
 {
@@ -328,6 +331,266 @@ class LegacyAppGrantSetServiceTest extends TestCase
             $this->assertSoftDeleted('legacy_app_grant_sets', [
                 'id' => $grantSet->id,
             ]);
+        }
+    }
+
+
+    public function test_designated_administrator_can_apply_grant_set_with_inactive_applications_skipped(): void
+    {
+        $administrator = $this->createUser('apply-grant-set-admin');
+        $target = $this->createUser('apply-grant-set-target');
+
+        $this->createDesignation($administrator);
+
+        $activeAppId = $this->createLegacyApp();
+        $inactiveAppId = $this->createLegacyApp(false);
+
+        $service = app(LegacyAppGrantSetService::class);
+
+        $grantSet = $service->create([
+            'name' => 'Application Test Set',
+            'legacy_app_ids' => [$activeAppId, $inactiveAppId],
+        ], $administrator);
+
+        $applicationEvent = $service->apply(
+            $grantSet,
+            $target,
+            $administrator,
+        );
+
+        $this->assertInstanceOf(
+            LegacyAppGrantSetApplicationEvent::class,
+            $applicationEvent,
+        );
+
+        $this->assertSame($target->id, $applicationEvent->user_id);
+        $this->assertSame($administrator->id, $applicationEvent->actor_id);
+
+        $this->assertEqualsCanonicalizing(
+            [$activeAppId, $inactiveAppId],
+            $applicationEvent->legacy_app_ids,
+        );
+
+        // Only the active application receives a grant.
+        $this->assertDatabaseCount('user_legacy_app_grants', 1);
+
+        $grant = UserLegacyAppGrant::query()
+            ->where('user_id', $target->id)
+            ->where('legacy_app_id', $activeAppId)
+            ->firstOrFail();
+
+        $this->assertTrue($grant->isActive());
+
+        // The grant event identifies the Grant Set as its source.
+        $this->assertDatabaseHas('legacy_app_grant_events', [
+            'grant_id' => $grant->id,
+            'event_type' => LegacyAppGrantEvent::EVENT_GRANTED,
+            'source' => LegacyAppGrantEvent::SOURCE_GRANT_SET,
+        ]);
+
+        $this->assertDatabaseCount('legacy_app_grant_events', 1);
+        $this->assertDatabaseCount(
+            'legacy_app_grant_set_application_events',
+            1,
+        );
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'access.legacy_app_grant_set_applied',
+            'user_id' => $administrator->id,
+            'entity_type' => 'legacy_app_grant_set',
+            'entity_id' => $grantSet->id,
+        ]);
+    }
+
+    public function test_reapplying_grant_set_does_not_duplicate_active_grants(): void
+    {
+        $administrator = $this->createUser('reapply-grant-set-admin');
+        $target = $this->createUser('reapply-grant-set-target');
+
+        $this->createDesignation($administrator);
+
+        $activeAppId = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantSetService::class);
+
+        $grantSet = $service->create([
+            'name' => 'Reapplication Test Set',
+            'legacy_app_ids' => [$activeAppId],
+        ], $administrator);
+
+        $firstApplication = $service->apply(
+            $grantSet,
+            $target,
+            $administrator,
+        );
+
+        $originalGrant = UserLegacyAppGrant::query()
+            ->where('user_id', $target->id)
+            ->where('legacy_app_id', $activeAppId)
+            ->firstOrFail();
+
+        $originalGrantedAt = $originalGrant->granted_at;
+
+        $secondApplication = $service->apply(
+            $grantSet,
+            $target,
+            $administrator,
+        );
+
+        $originalGrant->refresh();
+
+        // Reapplication must preserve the existing grant period.
+        $this->assertSame($originalGrant->id, $originalGrant->fresh()->id);
+        $this->assertEquals($originalGrantedAt, $originalGrant->granted_at);
+
+        // No duplicate active grant or grant event is created.
+        $this->assertDatabaseCount('user_legacy_app_grants', 1);
+        $this->assertDatabaseCount('legacy_app_grant_events', 1);
+
+        // Each successful application has its own history event.
+        $this->assertNotSame($firstApplication->id, $secondApplication->id);
+
+        $this->assertDatabaseCount(
+            'legacy_app_grant_set_application_events',
+            2,
+        );
+    }
+
+
+    public function test_reapplying_grant_set_after_revocation_creates_a_new_grant_period(): void
+    {
+        $administrator = $this->createUser('regrant-set-admin');
+        $target = $this->createUser('regrant-set-target');
+
+        $this->createDesignation($administrator);
+
+        $activeAppId = $this->createLegacyApp();
+
+        $grantSetService = app(LegacyAppGrantSetService::class);
+        $grantService = app(\App\Services\LegacyAppGrantService::class);
+
+        $grantSet = $grantSetService->create([
+            'name' => 'Regrant Test Set',
+            'legacy_app_ids' => [$activeAppId],
+        ], $administrator);
+
+        $grantSetService->apply($grantSet, $target, $administrator);
+
+        $originalGrant = UserLegacyAppGrant::query()
+            ->where('user_id', $target->id)
+            ->where('legacy_app_id', $activeAppId)
+            ->firstOrFail();
+
+        $grantService->revoke($originalGrant, $administrator);
+
+        $this->assertDatabaseHas('user_legacy_app_grants', [
+            'id' => $originalGrant->id,
+            'revoked_by' => $administrator->id,
+        ]);
+
+        $secondApplication = $grantSetService->apply(
+            $grantSet,
+            $target,
+            $administrator,
+        );
+
+        $grantPeriods = UserLegacyAppGrant::query()
+            ->where('user_id', $target->id)
+            ->where('legacy_app_id', $activeAppId)
+            ->orderBy('granted_at')
+            ->get();
+
+        $this->assertCount(2, $grantPeriods);
+
+        $this->assertFalse($grantPeriods[0]->isActive());
+        $this->assertTrue($grantPeriods[1]->isActive());
+
+        $this->assertNotSame(
+            $grantPeriods[0]->id,
+            $grantPeriods[1]->id,
+        );
+
+        $this->assertDatabaseCount('legacy_app_grant_events', 3);
+        $this->assertDatabaseCount(
+            'legacy_app_grant_set_application_events',
+            2,
+        );
+
+        $this->assertDatabaseHas('legacy_app_grant_events', [
+            'grant_id' => $grantPeriods[1]->id,
+            'event_type' => LegacyAppGrantEvent::EVENT_GRANTED,
+            'source' => LegacyAppGrantEvent::SOURCE_GRANT_SET,
+        ]);
+
+        $this->assertDatabaseHas('legacy_app_grant_set_application_events', [
+            'id' => $secondApplication->id,
+            'grant_set_id' => $grantSet->id,
+            'user_id' => $target->id,
+        ]);
+    }
+
+    public function test_non_designated_user_cannot_apply_grant_set(): void
+    {
+        $administrator = $this->createUser('apply-owner-admin');
+        $ordinaryUser = $this->createUser('apply-unauthorized-user');
+        $target = $this->createUser('apply-unauthorized-target');
+
+        $this->createDesignation($administrator);
+
+        $activeAppId = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantSetService::class);
+
+        $grantSet = $service->create([
+            'name' => 'Protected Application Set',
+            'legacy_app_ids' => [$activeAppId],
+        ], $administrator);
+
+        try {
+            $service->apply($grantSet, $target, $ordinaryUser);
+
+            $this->fail('A non-designated user must not apply a Grant Set.');
+        } catch (AuthorizationException) {
+            $this->assertDatabaseCount(
+                'legacy_app_grant_set_application_events',
+                0,
+            );
+
+            $this->assertDatabaseCount('user_legacy_app_grants', 0);
+            $this->assertDatabaseCount('legacy_app_grant_events', 0);
+        }
+    }
+
+    public function test_archived_grant_set_cannot_be_applied(): void
+    {
+        $administrator = $this->createUser('archived-apply-admin');
+        $target = $this->createUser('archived-apply-target');
+
+        $this->createDesignation($administrator);
+
+        $activeAppId = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantSetService::class);
+
+        $grantSet = $service->create([
+            'name' => 'Archived Application Set',
+            'legacy_app_ids' => [$activeAppId],
+        ], $administrator);
+
+        $service->archive($grantSet, $administrator);
+
+        try {
+            $service->apply($grantSet, $target, $administrator);
+
+            $this->fail('An archived Grant Set must not be applied.');
+        } catch (ValidationException) {
+            $this->assertDatabaseCount(
+                'legacy_app_grant_set_application_events',
+                0,
+            );
+
+            $this->assertDatabaseCount('user_legacy_app_grants', 0);
+            $this->assertDatabaseCount('legacy_app_grant_events', 0);
         }
     }
 

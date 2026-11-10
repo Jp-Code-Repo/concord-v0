@@ -121,4 +121,24 @@ class LegacyAppGrantSetController extends Controller
             'data' => $restoredGrantSet,
         ]);
     }
+
+    public function apply(
+        Request $request,
+        User $user,
+        LegacyAppGrantSet $grantSet,
+        LegacyAppGrantSetService $grantSets,
+    ): JsonResponse {
+        $auth = $request->attributes->get('auth');
+        $actor = User::findOrFail($auth['user_id']);
+
+        $application = $grantSets->apply(
+            $grantSet,
+            $user,
+            $actor,
+        );
+
+        return response()->json([
+            'data' => $application,
+        ], 201);
+    }
 }

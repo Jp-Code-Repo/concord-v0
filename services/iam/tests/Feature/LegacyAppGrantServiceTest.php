@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Tests\TestCase;
 
 class LegacyAppGrantServiceTest extends TestCase
@@ -310,6 +311,112 @@ class LegacyAppGrantServiceTest extends TestCase
             $result['applications'][0]['grant_source'],
         );
         $this->assertCount(0, $result['grant_sets']);
+    }
+
+    public function test_grant_transaction_rolls_back_when_audit_insert_fails(): void
+    {
+        $administrator = $this->createUser('audit-failure-grant-admin');
+        $target = $this->createUser('audit-failure-grant-target');
+
+        $this->createDesignation($administrator);
+        $legacyAppId = $this->createLegacyApp();
+
+        $shouldFailAuditInsert = true;
+
+        DB::connection()->beforeExecuting(
+            function (string $query) use (&$shouldFailAuditInsert): void {
+                $normalizedQuery = strtolower(ltrim($query));
+
+                if (
+                    $shouldFailAuditInsert
+                    && str_starts_with($normalizedQuery, 'insert')
+                    && str_contains($normalizedQuery, 'audit_logs')
+                ) {
+                    throw new RuntimeException('Simulated audit insert failure.');
+                }
+            },
+        );
+
+        try {
+            try {
+                app(LegacyAppGrantService::class)->grant(
+                    $target,
+                    $legacyAppId,
+                    $administrator,
+                );
+
+                $this->fail('The audit insert failure should abort the grant transaction.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Simulated audit insert failure.',
+                    $exception->getMessage(),
+                );
+            }
+        } finally {
+            $shouldFailAuditInsert = false;
+        }
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 0);
+        $this->assertDatabaseCount('legacy_app_grant_events', 0);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'access.legacy_app_granted',
+        ]);
+    }
+
+    public function test_revoke_transaction_rolls_back_when_audit_insert_fails(): void
+    {
+        $administrator = $this->createUser('audit-failure-revoke-admin');
+        $target = $this->createUser('audit-failure-revoke-target');
+
+        $this->createDesignation($administrator);
+        $legacyAppId = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantService::class);
+        $grant = $service->grant($target, $legacyAppId, $administrator);
+
+        $shouldFailAuditInsert = true;
+
+        DB::connection()->beforeExecuting(
+            function (string $query) use (&$shouldFailAuditInsert): void {
+                $normalizedQuery = strtolower(ltrim($query));
+
+                if (
+                    $shouldFailAuditInsert
+                    && str_starts_with($normalizedQuery, 'insert')
+                    && str_contains($normalizedQuery, 'audit_logs')
+                ) {
+                    throw new RuntimeException('Simulated audit insert failure.');
+                }
+            },
+        );
+
+        try {
+            try {
+                $service->revoke($grant, $administrator);
+
+                $this->fail('The audit insert failure should abort the revoke transaction.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Simulated audit insert failure.',
+                    $exception->getMessage(),
+                );
+            }
+        } finally {
+            $shouldFailAuditInsert = false;
+        }
+
+        $this->assertTrue($grant->fresh()->isActive());
+        $this->assertNull($grant->fresh()->revoked_at);
+        $this->assertDatabaseCount('user_legacy_app_grants', 1);
+        $this->assertDatabaseCount('legacy_app_grant_events', 1);
+        $this->assertDatabaseMissing('legacy_app_grant_events', [
+            'grant_id' => $grant->id,
+            'event_type' => LegacyAppGrantEvent::EVENT_REVOKED,
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'access.legacy_app_revoked',
+            'entity_id' => $grant->id,
+        ]);
     }
 
     private function createUser(string $username): User

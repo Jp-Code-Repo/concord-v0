@@ -3,22 +3,25 @@
 namespace App\Services;
 
 use App\Models\LegacyAppGrantEvent;
+use App\Models\LegacyAppGrantSet;
+use App\Models\LegacyAppGrantSetApplicationEvent;
 use App\Models\User;
 use App\Models\UserLegacyAppGrant;
 use App\Support\Audit;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use App\Models\LegacyAppGrantSetApplicationEvent;
 
 class LegacyAppGrantService
 {
     public function __construct(
         private readonly PlatformAdministratorService $platformAdministrators,
+        private readonly LegacyAppGrantSetService $grantSets,
     ) {}
 
     /**
-     * Grant an active legacy application to a user.
+     * Grant a legacy application to a user.
      */
     public function grant(
         User $target,
@@ -47,7 +50,6 @@ class LegacyAppGrantService
             $actor,
             $metadata,
         ): UserLegacyAppGrant {
-
             $existingGrant = UserLegacyAppGrant::query()
                 ->where('user_id', $target->id)
                 ->where('legacy_app_id', $legacyAppId)
@@ -94,6 +96,189 @@ class LegacyAppGrantService
             );
 
             return $grant->fresh(['user', 'grantedBy', 'events']);
+        });
+    }
+
+    /**
+     * Assign one Grant Set or a list of individual applications to multiple users.
+     *
+     * The entire batch is atomic and never revokes existing access.
+     */
+    public function batchAssign(
+        array $userIds,
+        string $method,
+        User $actor,
+        ?string $grantSetId = null,
+        array $legacyAppIds = [],
+    ): array {
+        $this->authorizeActor($actor);
+
+        $userIds = array_values(array_unique($userIds));
+        $legacyAppIds = array_values(array_unique($legacyAppIds));
+
+        if ($userIds === []) {
+            throw ValidationException::withMessages([
+                'user_ids' => ['Select at least one user.'],
+            ]);
+        }
+
+        if (! in_array($method, ['grant_set', 'individual_apps'], true)) {
+            throw ValidationException::withMessages([
+                'method' => ['The selected assignment method is invalid.'],
+            ]);
+        }
+
+        if (
+            ($method === 'grant_set' && ($grantSetId === null || $legacyAppIds !== [])) ||
+            ($method === 'individual_apps' && ($grantSetId !== null || $legacyAppIds === []))
+        ) {
+            throw ValidationException::withMessages([
+                'method' => [
+                    'Provide exactly one assignment method and its corresponding selection.',
+                ],
+            ]);
+        }
+
+        return DB::transaction(function () use (
+            $userIds,
+            $method,
+            $actor,
+            $grantSetId,
+            $legacyAppIds,
+        ): array {
+            $targets = User::query()
+                ->whereIn('id', $userIds)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            if ($targets->count() !== count($userIds)) {
+                throw ValidationException::withMessages([
+                    'user_ids' => ['One or more selected users do not exist.'],
+                ]);
+            }
+
+            $batchId = (string) Str::ulid();
+            $results = [];
+
+            if ($method === 'grant_set') {
+                $grantSet = LegacyAppGrantSet::query()
+                    ->whereKey($grantSetId)
+                    ->first();
+
+                if ($grantSet === null) {
+                    throw ValidationException::withMessages([
+                        'grant_set_id' => [
+                            'The selected Grant Set does not exist or is archived.',
+                        ],
+                    ]);
+                }
+
+                foreach ($targets as $target) {
+                    $application = $this->grantSets->apply(
+                        $grantSet,
+                        $target,
+                        $actor,
+                    );
+
+                    $results[] = [
+                        'user_id' => $target->id,
+                        'application_event_id' => $application->id,
+                    ];
+                }
+
+                return [
+                    'batch_id' => $batchId,
+                    'method' => $method,
+                    'users' => $results,
+                ];
+            }
+
+            $activeApps = DB::connection('concord_platform')
+                ->table('legacy_apps')
+                ->whereIn('id', $legacyAppIds)
+                ->where('is_active', true)
+                ->get(['id'])
+                ->keyBy('id');
+
+            if ($activeApps->count() !== count($legacyAppIds)) {
+                throw ValidationException::withMessages([
+                    'legacy_app_ids' => [
+                        'One or more selected applications do not exist or are inactive.',
+                    ],
+                ]);
+            }
+
+            $now = now();
+
+            foreach ($targets as $target) {
+                $existingActiveIds = UserLegacyAppGrant::query()
+                    ->where('user_id', $target->id)
+                    ->whereIn('legacy_app_id', $legacyAppIds)
+                    ->whereNull('revoked_at')
+                    ->lockForUpdate()
+                    ->pluck('legacy_app_id')
+                    ->map(fn ($id) => (string) $id)
+                    ->all();
+
+                $existingActiveIds = array_flip($existingActiveIds);
+                $grantedAppIds = [];
+                $skippedAppIds = [];
+
+                foreach ($legacyAppIds as $legacyAppId) {
+                    if (isset($existingActiveIds[$legacyAppId])) {
+                        $skippedAppIds[] = $legacyAppId;
+                        continue;
+                    }
+
+                    $grant = UserLegacyAppGrant::query()->create([
+                        'user_id' => $target->id,
+                        'legacy_app_id' => $legacyAppId,
+                        'granted_at' => $now,
+                        'granted_by' => $actor->id,
+                    ]);
+
+                    LegacyAppGrantEvent::query()->create([
+                        'grant_id' => $grant->id,
+                        'event_type' => LegacyAppGrantEvent::EVENT_GRANTED,
+                        'actor_id' => $actor->id,
+                        'source' => LegacyAppGrantEvent::SOURCE_BATCH,
+                        'metadata' => [
+                            'batch_id' => $batchId,
+                            'method' => $method,
+                        ],
+                        'occurred_at' => $now,
+                    ]);
+
+                    Audit::log(
+                        'access.legacy_app_granted',
+                        $actor->id,
+                        null,
+                        entityType: 'legacy_app_grant',
+                        entityId: $grant->id,
+                        meta: [
+                            'target_user_id' => $target->id,
+                            'legacy_app_id' => $legacyAppId,
+                            'source' => LegacyAppGrantEvent::SOURCE_BATCH,
+                            'batch_id' => $batchId,
+                        ],
+                    );
+
+                    $grantedAppIds[] = $legacyAppId;
+                }
+
+                $results[] = [
+                    'user_id' => $target->id,
+                    'granted_app_ids' => $grantedAppIds,
+                    'skipped_app_ids' => $skippedAppIds,
+                ];
+            }
+
+            return [
+                'batch_id' => $batchId,
+                'method' => $method,
+                'users' => $results,
+            ];
         });
     }
 

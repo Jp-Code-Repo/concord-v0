@@ -17,6 +17,8 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Tests\TestCase;
+use App\Models\LegacyAppGrantSet;
+use App\Models\LegacyAppGrantSetItem;
 
 class LegacyAppGrantServiceTest extends TestCase
 {
@@ -583,5 +585,229 @@ class LegacyAppGrantServiceTest extends TestCase
                 ->where('action', 'access.legacy_app_revoked')
                 ->count(),
         );
+    }
+
+    public function test_batch_assign_grants_multiple_apps_to_multiple_users(): void
+    {
+        $administrator = $this->createUser('batch-admin');
+        $userA = $this->createUser('batch-user-a');
+        $userB = $this->createUser('batch-user-b');
+
+        $this->createDesignation($administrator);
+
+        $appA = $this->createLegacyApp();
+        $appB = $this->createLegacyApp();
+
+        // User A already has App A.
+        app(LegacyAppGrantService::class)->grant(
+            $userA,
+            $appA,
+            $administrator,
+        );
+
+        $result = app(LegacyAppGrantService::class)->batchAssign(
+            [$userA->id, $userB->id],
+            'individual_apps',
+            $administrator,
+            legacyAppIds: [$appA, $appB],
+        );
+
+        $this->assertSame('individual_apps', $result['method']);
+        $this->assertCount(2, $result['users']);
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 4);
+
+        $this->assertDatabaseHas('legacy_app_grant_events', [
+            'source' => LegacyAppGrantEvent::SOURCE_BATCH,
+            'event_type' => LegacyAppGrantEvent::EVENT_GRANTED,
+        ]);
+
+        $userAResult = collect($result['users'])
+            ->firstWhere('user_id', $userA->id);
+
+        $this->assertEqualsCanonicalizing(
+            [$appB],
+            $userAResult['granted_app_ids'],
+        );
+
+        $this->assertEqualsCanonicalizing(
+            [$appA],
+            $userAResult['skipped_app_ids'],
+        );
+
+        $this->assertDatabaseHas('user_legacy_app_grants', [
+            'user_id' => $userB->id,
+            'legacy_app_id' => $appA,
+            'revoked_at' => null,
+        ]);
+
+        $this->assertDatabaseHas('user_legacy_app_grants', [
+            'user_id' => $userB->id,
+            'legacy_app_id' => $appB,
+            'revoked_at' => null,
+        ]);
+    }
+
+    public function test_batch_assign_creates_new_grant_period_after_revocation(): void
+    {
+        $administrator = $this->createUser('batch-regrant-admin');
+        $target = $this->createUser('batch-regrant-target');
+
+        $this->createDesignation($administrator);
+
+        $app = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantService::class);
+
+        $originalGrant = $service->grant(
+            $target,
+            $app,
+            $administrator,
+        );
+
+        $service->revoke($originalGrant, $administrator);
+
+        $result = $service->batchAssign(
+            [$target->id],
+            'individual_apps',
+            $administrator,
+            legacyAppIds: [$app],
+        );
+
+        $newGrant = UserLegacyAppGrant::query()
+            ->where('user_id', $target->id)
+            ->where('legacy_app_id', $app)
+            ->whereNull('revoked_at')
+            ->firstOrFail();
+
+        $this->assertNotSame($originalGrant->id, $newGrant->id);
+
+        $this->assertNotNull($originalGrant->fresh()->revoked_at);
+
+        $this->assertSame(
+            [$app],
+            $result['users'][0]['granted_app_ids'],
+        );
+
+        $this->assertDatabaseHas('legacy_app_grant_events', [
+            'grant_id' => $newGrant->id,
+            'source' => LegacyAppGrantEvent::SOURCE_BATCH,
+            'event_type' => LegacyAppGrantEvent::EVENT_GRANTED,
+        ]);
+    }
+
+    public function test_batch_assign_applies_grant_set_to_multiple_users(): void
+    {
+        $administrator = $this->createUser('batch-grant-set-admin');
+        $userA = $this->createUser('batch-grant-set-user-a');
+        $userB = $this->createUser('batch-grant-set-user-b');
+
+        $this->createDesignation($administrator);
+
+        $appA = $this->createLegacyApp();
+        $appB = $this->createLegacyApp();
+
+        $grantSet = LegacyAppGrantSet::query()->create([
+            'name' => 'Batch Test Grant Set',
+            'description' => 'Grant Set for batch assignment test.',
+        ]);
+
+        foreach ([$appA, $appB] as $appId) {
+            LegacyAppGrantSetItem::query()->create([
+                'grant_set_id' => $grantSet->id,
+                'legacy_app_id' => $appId,
+            ]);
+        }
+
+        $result = app(LegacyAppGrantService::class)->batchAssign(
+            [$userA->id, $userB->id],
+            'grant_set',
+            $administrator,
+            grantSetId: $grantSet->id,
+        );
+
+        $this->assertSame('grant_set', $result['method']);
+        $this->assertCount(2, $result['users']);
+
+        $this->assertDatabaseCount(
+            'legacy_app_grant_set_application_events',
+            2,
+        );
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 4);
+
+        $this->assertSame(
+            4,
+            DB::table('legacy_app_grant_events')
+                ->where('source', LegacyAppGrantEvent::SOURCE_GRANT_SET)
+                ->where('event_type', LegacyAppGrantEvent::EVENT_GRANTED)
+                ->count(),
+        );
+
+        $this->assertSame(
+            2,
+            DB::table('audit_logs')
+                ->where('action', 'access.legacy_app_grant_set_applied')
+                ->count(),
+        );
+    }
+
+    public function test_batch_assign_rolls_back_entire_batch_when_audit_insert_fails(): void
+    {
+        $administrator = $this->createUser('batch-rollback-admin');
+        $userA = $this->createUser('batch-rollback-user-a');
+        $userB = $this->createUser('batch-rollback-user-b');
+
+        $this->createDesignation($administrator);
+
+        $appA = $this->createLegacyApp();
+        $appB = $this->createLegacyApp();
+
+        $shouldFailAuditInsert = true;
+
+        DB::connection()->beforeExecuting(
+            function (string $query) use (&$shouldFailAuditInsert): void {
+                $normalizedQuery = strtolower(ltrim($query));
+
+                if (
+                    $shouldFailAuditInsert
+                    && str_starts_with($normalizedQuery, 'insert')
+                    && str_contains($normalizedQuery, 'audit_logs')
+                ) {
+                    throw new RuntimeException(
+                        'Simulated batch audit insert failure.'
+                    );
+                }
+            },
+        );
+
+        try {
+            try {
+                app(LegacyAppGrantService::class)->batchAssign(
+                    [$userA->id, $userB->id],
+                    'individual_apps',
+                    $administrator,
+                    legacyAppIds: [$appA, $appB],
+                );
+
+                $this->fail(
+                    'The audit failure should roll back the entire batch.'
+                );
+            } catch (RuntimeException $exception) {
+                $this->assertSame(
+                    'Simulated batch audit insert failure.',
+                    $exception->getMessage(),
+                );
+            }
+        } finally {
+            $shouldFailAuditInsert = false;
+        }
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 0);
+        $this->assertDatabaseCount('legacy_app_grant_events', 0);
+
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'access.legacy_app_granted',
+        ]);
     }
 }

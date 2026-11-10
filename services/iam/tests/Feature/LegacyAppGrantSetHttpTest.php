@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
+use App\Models\LegacyAppGrantSet;
 
 class LegacyAppGrantSetHttpTest extends TestCase
 {
@@ -531,5 +532,234 @@ class LegacyAppGrantSetHttpTest extends TestCase
             [],
             ['HTTP_ACCEPT' => 'application/json'],
         );
+    }
+
+    public function test_designated_administrator_can_batch_assign_individual_apps_to_multiple_users(): void
+    {
+        $admin = $this->createUser('batch-http-admin');
+        $userA = $this->createUser('batch-http-user-a');
+        $userB = $this->createUser('batch-http-user-b');
+
+        $this->designateAdministrator($admin);
+        $cookie = $this->login($admin);
+
+        $appA = $this->createLegacyApp('Student Portal');
+        $appB = $this->createLegacyApp('HR Portal');
+
+        $response = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/batch-assignments',
+            $cookie,
+            [
+                'user_ids' => [$userA->id, $userB->id],
+                'method' => 'individual_apps',
+                'legacy_app_ids' => [$appA, $appB],
+            ],
+        );
+
+        $response->assertCreated()
+            ->assertJsonPath('data.method', 'individual_apps');
+
+        $this->assertCount(2, $response->json('data.users'));
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 4);
+
+        $this->assertSame(
+            4,
+            LegacyAppGrantEvent::query()
+                ->where('source', LegacyAppGrantEvent::SOURCE_BATCH)
+                ->where('event_type', LegacyAppGrantEvent::EVENT_GRANTED)
+                ->count(),
+        );
+
+        foreach ([$userA, $userB] as $user) {
+            foreach ([$appA, $appB] as $appId) {
+                $this->assertDatabaseHas('user_legacy_app_grants', [
+                    'user_id' => $user->id,
+                    'legacy_app_id' => $appId,
+                    'revoked_at' => null,
+                ]);
+            }
+        }
+    }
+
+    public function test_designated_administrator_can_batch_apply_a_grant_set(): void
+    {
+        $admin = $this->createUser('batch-grant-set-http-admin');
+        $userA = $this->createUser('batch-grant-set-http-a');
+        $userB = $this->createUser('batch-grant-set-http-b');
+
+        $this->designateAdministrator($admin);
+        $cookie = $this->login($admin);
+
+        $appA = $this->createLegacyApp('Student Portal');
+        $appB = $this->createLegacyApp('HR Portal');
+
+        $create = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/grant-sets',
+            $cookie,
+            [
+                'name' => 'Batch HTTP Grant Set',
+                'description' => 'Batch assignment test',
+                'legacy_app_ids' => [$appA, $appB],
+            ],
+        );
+
+        $create->assertCreated();
+
+        $grantSetId = $create->json('data.id');
+
+        $response = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/batch-assignments',
+            $cookie,
+            [
+                'user_ids' => [$userA->id, $userB->id],
+                'method' => 'grant_set',
+                'grant_set_id' => $grantSetId,
+            ],
+        );
+
+        $response->assertCreated()
+            ->assertJsonPath('data.method', 'grant_set');
+
+        $this->assertCount(2, $response->json('data.users'));
+
+        $this->assertDatabaseCount(
+            'legacy_app_grant_set_application_events',
+            2,
+        );
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 4);
+    }
+
+    public function test_ordinary_user_cannot_batch_assign_legacy_apps(): void
+    {
+        $admin = $this->createUser('batch-denied-admin');
+        $ordinaryUser = $this->createUser('batch-denied-user');
+        $target = $this->createUser('batch-denied-target');
+
+        $this->designateAdministrator($admin);
+
+        $ordinaryCookie = $this->login($ordinaryUser);
+        $appId = $this->createLegacyApp('Student Portal');
+
+        $response = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/batch-assignments',
+            $ordinaryCookie,
+            [
+                'user_ids' => [$target->id],
+                'method' => 'individual_apps',
+                'legacy_app_ids' => [$appId],
+            ],
+        );
+
+        $response->assertForbidden();
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 0);
+    }
+
+    public function test_unauthenticated_user_cannot_batch_assign_legacy_apps(): void
+    {
+        $target = $this->createUser('batch-unauthenticated-target');
+        $appId = $this->createLegacyApp('Student Portal');
+
+        $response = $this->postJson(
+            '/api/iam/admin/legacy-apps/batch-assignments',
+            [
+                'user_ids' => [$target->id],
+                'method' => 'individual_apps',
+                'legacy_app_ids' => [$appId],
+            ],
+        );
+
+        $response->assertUnauthorized();
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 0);
+    }
+
+    public function test_batch_assignment_rejects_mixed_assignment_methods(): void
+    {
+        $admin = $this->createUser('batch-validation-admin');
+        $target = $this->createUser('batch-validation-target');
+
+        $this->designateAdministrator($admin);
+
+        $cookie = $this->login($admin);
+        $appId = $this->createLegacyApp('Student Portal');
+
+        $response = $this->request(
+            'POST',
+            '/api/iam/admin/legacy-apps/batch-assignments',
+            $cookie,
+            [
+                'user_ids' => [$target->id],
+                'method' => 'individual_apps',
+                'grant_set_id' => (string) Str::ulid(),
+                'legacy_app_ids' => [$appId],
+            ],
+        );
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['grant_set_id']);
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 0);
+    }
+
+    public function test_batch_assignment_http_request_rolls_back_entire_batch_when_audit_fails(): void
+    {
+        $admin = $this->createUser('batch-http-rollback-admin');
+        $userA = $this->createUser('batch-http-rollback-a');
+        $userB = $this->createUser('batch-http-rollback-b');
+
+        $this->designateAdministrator($admin);
+        $cookie = $this->login($admin);
+
+        $appA = $this->createLegacyApp('Rollback App A');
+        $appB = $this->createLegacyApp('Rollback App B');
+
+        $shouldFailAuditInsert = true;
+
+        DB::connection()->beforeExecuting(
+            function (string $query) use (&$shouldFailAuditInsert): void {
+                $normalizedQuery = strtolower(ltrim($query));
+
+                if (
+                    $shouldFailAuditInsert
+                    && str_starts_with($normalizedQuery, 'insert')
+                    && str_contains($normalizedQuery, 'audit_logs')
+                ) {
+                    throw new \RuntimeException(
+                        'Simulated HTTP batch audit failure.'
+                    );
+                }
+            },
+        );
+
+        try {
+            $response = $this->request(
+                'POST',
+                '/api/iam/admin/legacy-apps/batch-assignments',
+                $cookie,
+                [
+                    'user_ids' => [$userA->id, $userB->id],
+                    'method' => 'individual_apps',
+                    'legacy_app_ids' => [$appA, $appB],
+                ],
+            );
+        } finally {
+            $shouldFailAuditInsert = false;
+        }
+
+        $response->assertServerError();
+
+        $this->assertDatabaseCount('user_legacy_app_grants', 0);
+        $this->assertDatabaseCount('legacy_app_grant_events', 0);
+
+        $this->assertDatabaseMissing('audit_logs', [
+            'action' => 'access.legacy_app_granted',
+        ]);
     }
 }

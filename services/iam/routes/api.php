@@ -52,6 +52,7 @@ Route::prefix('iam')->group(function () {
         Route::post('legacy-apps/grant-sets/{grantSet}/restore', [LegacyAppGrantSetController::class, 'restore']);
         Route::post( 'users/{user}/legacy-apps/grant-sets/{grantSet}/apply',  [LegacyAppGrantSetController::class, 'apply']);
         Route::get( 'users/{user}/legacy-apps', [LegacyAppAccessController::class, 'show'] );
+        Route::post('legacy-apps/batch-assignments',[LegacyAppAccessController::class, 'batchAssign']);
     });
 
     Route::get('edge-check', function (Request $request) {

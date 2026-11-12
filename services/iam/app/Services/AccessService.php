@@ -21,8 +21,12 @@ class AccessService
     /**
      * Return the current access response for a user.
      *
-     * This is a compatibility response only. The final
-     * roles and permissions architecture remains undecided.
+     * Legacy application access is determined exclusively by
+     * the user's active individual grant records.
+     *
+     * The legacy IT administrator flag remains available through
+     * the compatibility all_access field. It does not bypass
+     * individual Legacy App grants.
      */
     public function forUser(string $userId, bool $isItAdmin): array
     {
@@ -33,18 +37,34 @@ class AccessService
         return Cache::remember(
             $cacheKey,
             self::TTL,
-            fn (): array => [
-                'all_access' => $isItAdmin,
-                'legacy_apps' => DB::connection('concord_platform')
+            function () use ($userId, $isItAdmin): array {
+                $grantedAppIds = DB::table('user_legacy_app_grants')
+                    ->where('user_id', $userId)
+                    ->whereNull('revoked_at')
+                    ->pluck('legacy_app_id');
+
+                $legacyApps = DB::connection('concord_platform')
                     ->table('legacy_apps')
+                    ->whereIn('id', $grantedAppIds)
                     ->where('is_active', true)
                     ->orderBy('sort_order')
                     ->orderBy('name')
-                    ->get(['id', 'name', 'url', 'icon', 'description'])
-                    ->toArray(),
-                'apps' => [],
-                'offices' => [],
-            ],
+                    ->get([
+                        'id',
+                        'name',
+                        'url',
+                        'icon',
+                        'description',
+                    ])
+                    ->toArray();
+
+                return [
+                    'all_access' => $isItAdmin,
+                    'legacy_apps' => $legacyApps,
+                    'apps' => [],
+                    'offices' => [],
+                ];
+            },
         );
     }
 }

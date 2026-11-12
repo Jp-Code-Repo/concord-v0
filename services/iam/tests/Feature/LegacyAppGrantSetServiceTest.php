@@ -8,19 +8,22 @@ use App\Models\PlatformAdministrator;
 use App\Models\User;
 use App\Services\LegacyAppGrantSetService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+//use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Tests\TestCase;
 use App\Models\LegacyAppGrantEvent;
 use App\Models\LegacyAppGrantSetApplicationEvent;
 use App\Models\UserLegacyAppGrant;
+use Illuminate\Support\Facades\Cache;
+use Tests\TestCase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class LegacyAppGrantSetServiceTest extends TestCase
 {
+    //use DatabaseMigrations;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -334,7 +337,6 @@ class LegacyAppGrantSetServiceTest extends TestCase
         }
     }
 
-
     public function test_designated_administrator_can_apply_grant_set_with_inactive_applications_skipped(): void
     {
         $administrator = $this->createUser('apply-grant-set-admin');
@@ -455,7 +457,6 @@ class LegacyAppGrantSetServiceTest extends TestCase
             2,
         );
     }
-
 
     public function test_reapplying_grant_set_after_revocation_creates_a_new_grant_period(): void
     {
@@ -634,5 +635,34 @@ class LegacyAppGrantSetServiceTest extends TestCase
             ]);
 
         return $id;
+    }
+
+    public function test_applying_grant_set_invalidates_users_access_cache(): void
+    {
+        $administrator = $this->createUser('cache-grant-set-admin');
+        $target = $this->createUser('cache-grant-set-target');
+
+        $this->createDesignation($administrator);
+
+        $legacyAppId = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantSetService::class);
+
+        $grantSet = $service->create([
+            'name' => 'Cache Invalidation Set',
+            'legacy_app_ids' => [$legacyAppId],
+        ], $administrator);
+
+        Cache::shouldReceive('forget')
+            ->once()
+            ->with("access:{$target->id}")
+            ->andReturn(true);
+
+        Cache::shouldReceive('forget')
+            ->once()
+            ->with("access:{$target->id}:it-admin")
+            ->andReturn(true);
+
+        $service->apply($grantSet, $target, $administrator);
     }
 }

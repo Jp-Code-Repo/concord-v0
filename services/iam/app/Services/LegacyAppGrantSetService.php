@@ -17,6 +17,7 @@ class LegacyAppGrantSetService
 {
     public function __construct(
         private readonly PlatformAdministratorService $platformAdministrators,
+        private readonly AccessService $access,
     ) {}
 
     /**
@@ -342,6 +343,10 @@ class LegacyAppGrantSetService
                     ],
                 );
 
+                DB::afterCommit(
+                    fn () => $this->access->forget($target->id)
+                );
+
                 return $applicationEvent;
             }
 
@@ -408,6 +413,10 @@ class LegacyAppGrantSetService
                     'legacy_app_ids' => $legacyAppIds,
                     'granted_app_ids' => $grantedAppIds,
                 ],
+            );
+
+            DB::afterCommit(
+                fn () => $this->access->forget($target->id)
             );
 
             return $applicationEvent;

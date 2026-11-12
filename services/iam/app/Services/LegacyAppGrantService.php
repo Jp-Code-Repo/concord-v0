@@ -18,6 +18,7 @@ class LegacyAppGrantService
     public function __construct(
         private readonly PlatformAdministratorService $platformAdministrators,
         private readonly LegacyAppGrantSetService $grantSets,
+        private readonly AccessService $access,
     ) {}
 
     /**
@@ -93,6 +94,10 @@ class LegacyAppGrantService
                     'legacy_app_id' => $legacyAppId,
                     'source' => LegacyAppGrantEvent::SOURCE_INDIVIDUAL,
                 ],
+            );
+
+            DB::afterCommit(
+                fn () => $this->access->forget($target->id)
             );
 
             return $grant->fresh(['user', 'grantedBy', 'events']);
@@ -187,6 +192,12 @@ class LegacyAppGrantService
                     ];
                 }
 
+                DB::afterCommit(function () use ($userIds): void {
+                    foreach ($userIds as $userId) {
+                        $this->access->forget($userId);
+                    }
+                });
+
                 return [
                     'batch_id' => $batchId,
                     'method' => $method,
@@ -274,6 +285,12 @@ class LegacyAppGrantService
                 ];
             }
 
+            DB::afterCommit(function () use ($userIds): void {
+                foreach ($userIds as $userId) {
+                    $this->access->forget($userId);
+                }
+            });
+
             return [
                 'batch_id' => $batchId,
                 'method' => $method,
@@ -337,6 +354,10 @@ class LegacyAppGrantService
                     'legacy_app_id' => $grant->legacy_app_id,
                     'source' => LegacyAppGrantEvent::SOURCE_INDIVIDUAL,
                 ],
+            );
+
+            DB::afterCommit(
+                fn () => $this->access->forget($grant->user_id)
             );
 
             return $grant->fresh([

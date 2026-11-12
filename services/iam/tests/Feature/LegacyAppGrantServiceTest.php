@@ -7,21 +7,24 @@ use App\Models\Person;
 use App\Models\PlatformAdministrator;
 use App\Models\User;
 use App\Models\UserLegacyAppGrant;
+use App\Models\LegacyAppGrantSet;
+use App\Models\LegacyAppGrantSetItem;
 use App\Services\LegacyAppGrantService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+//use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Tests\TestCase;
-use App\Models\LegacyAppGrantSet;
-use App\Models\LegacyAppGrantSetItem;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class LegacyAppGrantServiceTest extends TestCase
 {
+    //use DatabaseMigrations;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -312,6 +315,7 @@ class LegacyAppGrantServiceTest extends TestCase
             LegacyAppGrantEvent::SOURCE_INDIVIDUAL,
             $result['applications'][0]['grant_source'],
         );
+
         $this->assertCount(0, $result['grant_sets']);
     }
 
@@ -322,6 +326,8 @@ class LegacyAppGrantServiceTest extends TestCase
 
         $this->createDesignation($administrator);
         $legacyAppId = $this->createLegacyApp();
+
+        Cache::shouldReceive('forget')->never();
 
         $shouldFailAuditInsert = true;
 
@@ -360,6 +366,7 @@ class LegacyAppGrantServiceTest extends TestCase
 
         $this->assertDatabaseCount('user_legacy_app_grants', 0);
         $this->assertDatabaseCount('legacy_app_grant_events', 0);
+
         $this->assertDatabaseMissing('audit_logs', [
             'action' => 'access.legacy_app_granted',
         ]);
@@ -375,6 +382,8 @@ class LegacyAppGrantServiceTest extends TestCase
 
         $service = app(LegacyAppGrantService::class);
         $grant = $service->grant($target, $legacyAppId, $administrator);
+
+        Cache::shouldReceive('forget')->never();
 
         $shouldFailAuditInsert = true;
 
@@ -411,10 +420,12 @@ class LegacyAppGrantServiceTest extends TestCase
         $this->assertNull($grant->fresh()->revoked_at);
         $this->assertDatabaseCount('user_legacy_app_grants', 1);
         $this->assertDatabaseCount('legacy_app_grant_events', 1);
+
         $this->assertDatabaseMissing('legacy_app_grant_events', [
             'grant_id' => $grant->id,
             'event_type' => LegacyAppGrantEvent::EVENT_REVOKED,
         ]);
+
         $this->assertDatabaseMissing('audit_logs', [
             'action' => 'access.legacy_app_revoked',
             'entity_id' => $grant->id,
@@ -763,6 +774,8 @@ class LegacyAppGrantServiceTest extends TestCase
         $appA = $this->createLegacyApp();
         $appB = $this->createLegacyApp();
 
+        Cache::shouldReceive('forget')->never();
+
         $shouldFailAuditInsert = true;
 
         DB::connection()->beforeExecuting(
@@ -809,5 +822,88 @@ class LegacyAppGrantServiceTest extends TestCase
         $this->assertDatabaseMissing('audit_logs', [
             'action' => 'access.legacy_app_granted',
         ]);
+    }
+
+    public function test_grant_invalidates_users_access_cache_after_commit(): void
+    {
+        $administrator = $this->createUser('cache-grant-admin');
+        $target = $this->createUser('cache-grant-target');
+
+        $this->createDesignation($administrator);
+
+        $legacyAppId = $this->createLegacyApp();
+
+        Cache::shouldReceive('forget')
+            ->once()
+            ->with("access:{$target->id}")
+            ->andReturn(true);
+
+        Cache::shouldReceive('forget')
+            ->once()
+            ->with("access:{$target->id}:it-admin")
+            ->andReturn(true);
+
+        app(LegacyAppGrantService::class)->grant(
+            $target,
+            $legacyAppId,
+            $administrator,
+        );
+    }
+
+    public function test_revoke_invalidates_users_access_cache_after_commit(): void
+    {
+        $administrator = $this->createUser('cache-revoke-admin');
+        $target = $this->createUser('cache-revoke-target');
+
+        $this->createDesignation($administrator);
+
+        $legacyAppId = $this->createLegacyApp();
+
+        $service = app(LegacyAppGrantService::class);
+
+        $grant = $service->grant(
+            $target,
+            $legacyAppId,
+            $administrator,
+        );
+
+        // Ignore cache invalidation from the initial grant.
+        Cache::shouldReceive('forget')
+            ->twice()
+            ->andReturn(true);
+
+        $service->revoke($grant, $administrator);
+    }
+
+    public function test_batch_assign_invalidates_access_cache_for_every_user(): void
+    {
+        $administrator = $this->createUser('cache-batch-admin');
+        $firstUser = $this->createUser('cache-batch-first');
+        $secondUser = $this->createUser('cache-batch-second');
+
+        $this->createDesignation($administrator);
+
+        $firstAppId = $this->createLegacyApp();
+        $secondAppId = $this->createLegacyApp();
+
+        foreach ([$firstUser, $secondUser] as $target) {
+            Cache::shouldReceive('forget')
+                ->once()
+                ->with("access:{$target->id}")
+                ->andReturn(true);
+
+            Cache::shouldReceive('forget')
+                ->once()
+                ->with("access:{$target->id}:it-admin")
+                ->andReturn(true);
+        }
+
+        app(LegacyAppGrantService::class)->batchAssign(
+            [$firstUser->id, $secondUser->id],
+            'individual_apps',
+            $administrator,
+            null,
+            [$firstAppId, $secondAppId],
+        );
     }
 }

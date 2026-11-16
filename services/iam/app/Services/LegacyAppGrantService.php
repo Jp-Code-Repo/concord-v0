@@ -40,7 +40,7 @@ class LegacyAppGrantService
         if ($app === null) {
             throw ValidationException::withMessages([
                 'legacy_app_id' => [
-                    'The selected application does not exist or is inactive.',
+                    'The selected application does not exist.',
                 ],
             ]);
         }
@@ -369,8 +369,13 @@ class LegacyAppGrantService
         });
     }
 
+
     /**
      * Retrieve a user's current application access and Grant Set history.
+     *
+     * Active applications are returned separately from inactive assignments.
+     * Inactive assignments remain visible to administrators but are not
+     * included in the user's effective application access.
      */
     public function getUserAccess(
         User $target,
@@ -390,7 +395,6 @@ class LegacyAppGrantService
         $apps = DB::connection('concord_platform')
             ->table('legacy_apps')
             ->whereIn('id', $grants->pluck('legacy_app_id'))
-            ->where('is_active', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get([
@@ -399,26 +403,39 @@ class LegacyAppGrantService
                 'url',
                 'icon',
                 'description',
+                'is_active',
             ])
             ->keyBy('id');
 
-        $currentApplications = $grants
-            ->filter(fn ($grant) => $apps->has($grant->legacy_app_id))
-            ->map(function ($grant) use ($apps) {
-                $app = $apps->get($grant->legacy_app_id);
-                $latestEvent = $grant->events->first();
+        $applications = [];
+        $inactiveAssignments = [];
 
-                return [
-                    'id' => $app->id,
-                    'name' => $app->name,
-                    'url' => $app->url,
-                    'icon' => $app->icon,
-                    'description' => $app->description,
-                    'granted_at' => $grant->granted_at,
-                    'grant_source' => $latestEvent?->source,
-                ];
-            })
-            ->values();
+        foreach ($grants as $grant) {
+            $app = $apps->get($grant->legacy_app_id);
+
+            if ($app === null) {
+                continue;
+            }
+
+            $latestEvent = $grant->events->first();
+
+            $assignment = [
+                'id' => $app->id,
+                'name' => $app->name,
+                'url' => $app->url,
+                'icon' => $app->icon,
+                'description' => $app->description,
+                'granted_at' => $grant->granted_at,
+                'grant_source' => $latestEvent?->source,
+                'is_active' => (bool) $app->is_active,
+            ];
+
+            if ($app->is_active) {
+                $applications[] = $assignment;
+            } else {
+                $inactiveAssignments[] = $assignment;
+            }
+        }
 
         $grantSetHistory = LegacyAppGrantSetApplicationEvent::query()
             ->where('user_id', $target->id)
@@ -442,10 +459,12 @@ class LegacyAppGrantService
             ->values();
 
         return [
-            'applications' => $currentApplications,
+            'applications' => $applications,
+            'inactive_assignments' => $inactiveAssignments,
             'grant_sets' => $grantSetHistory,
         ];
     }
+
 
     private function authorizeActor(User $actor): void
     {

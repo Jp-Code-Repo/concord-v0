@@ -19,6 +19,9 @@ export interface IamUser {
   person_id: string;
   username: string;
   is_it_admin: boolean;
+  platform_authority: {
+    is_administrator: boolean;
+  };
   status: "active" | "deactivated" | "disabled";
   settings: Record<string, unknown>;
   person: IamPerson | null;

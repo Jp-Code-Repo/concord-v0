@@ -6,6 +6,7 @@ use App\Models\Person;
 use App\Models\User;
 use App\Services\AccessService;
 use App\Services\SessionService;
+use App\Services\PlatformAdministratorService;
 use App\Support\Audit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,12 @@ class AuthController extends Controller
     /** Valid bcrypt hash, so unknown usernames cost the same time as wrong passwords. */
     private const DUMMY_HASH = '$2y$12$Jgr/PuTRueOHquXLYSXu6uQSyt3kpSEGRXP9oKNbJ6iUiHNkTjYhK';
 
-    public function login(Request $request, SessionService $sessions, AccessService $access): JsonResponse
+    public function login(
+    Request $request,
+    SessionService $sessions,
+    AccessService $access,
+    PlatformAdministratorService $platformAdministrators,
+    ): JsonResponse
     {
         $data = $request->validate([
             'username' => 'required|string|max:100',
@@ -60,7 +66,7 @@ class AuthController extends Controller
 
         return response()
             ->json([
-                'user' => $this->userPayload($user),
+                'user' => $this->userPayload($user, $platformAdministrators),
                 'access' => $user->must_change_password
                     ? null
                     : $access->forUser($user->id, $user->is_it_admin),
@@ -89,13 +95,17 @@ class AuthController extends Controller
             ->withCookie(cookie()->forget(SessionService::COOKIE));
     }
 
-    public function me(Request $request, AccessService $access): JsonResponse
+    public function me(
+    Request $request,
+    AccessService $access,
+    PlatformAdministratorService $platformAdministrators,
+    ): JsonResponse
     {
         $auth = $request->attributes->get('auth');
         $user = User::with(['person.types', 'person.student'])->findOrFail($auth['user_id']);
 
         return response()->json([
-            'user' => $this->userPayload($user),
+            'user' => $this->userPayload($user, $platformAdministrators),
             'access' => $user->must_change_password
                 ? null
                 : $access->forUser($user->id, $user->is_it_admin),
@@ -201,7 +211,10 @@ class AuthController extends Controller
         ]);
     }
 
-    private function userPayload(User $user): array
+    private function userPayload(
+    User $user,
+    PlatformAdministratorService $platformAdministrators,
+    ): array
     {
         $person = $user->person;
 
@@ -210,6 +223,10 @@ class AuthController extends Controller
             'person_id' => $user->person_id,
             'username' => $user->username,
             'is_it_admin' => $user->is_it_admin,
+            'platform_authority' => 
+            [
+                'is_administrator' => $platformAdministrators->isDesignated($user->id),
+            ],
             'status' => $user->status,
             'must_change_password' => (bool) $user->must_change_password,
             'settings' => $user->settings ?? [],

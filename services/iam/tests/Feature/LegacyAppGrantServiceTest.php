@@ -311,13 +311,25 @@ class LegacyAppGrantServiceTest extends TestCase
 
         $this->assertCount(1, $result['applications']);
         $this->assertSame($activeAppId, $result['applications'][0]['id']);
+        $this->assertTrue($result['applications'][0]['is_active']);
+
         $this->assertSame(
             LegacyAppGrantEvent::SOURCE_INDIVIDUAL,
             $result['applications'][0]['grant_source'],
         );
 
+        $this->assertCount(1, $result['inactive_assignments']);
+        $this->assertSame(
+            $inactiveAppId,
+            $result['inactive_assignments'][0]['id'],
+        );
+        $this->assertFalse(
+            $result['inactive_assignments'][0]['is_active'],
+        );
+
         $this->assertCount(0, $result['grant_sets']);
     }
+
 
     public function test_grant_transaction_rolls_back_when_audit_insert_fails(): void
     {

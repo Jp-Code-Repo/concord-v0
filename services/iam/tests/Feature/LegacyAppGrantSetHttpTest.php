@@ -762,4 +762,6 @@ class LegacyAppGrantSetHttpTest extends TestCase
             'action' => 'access.legacy_app_granted',
         ]);
     }
+
+        
 }

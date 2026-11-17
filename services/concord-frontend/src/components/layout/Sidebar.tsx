@@ -1,5 +1,12 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { ChevronRight, LayoutDashboard, LayoutGrid, Users} from "lucide-react";
+import {
+  ChevronRight,
+  LayoutDashboard,
+  LayoutGrid,
+  Users,
+  AppWindow,
+  Layers,
+} from "lucide-react";
 
 import emblem from "@/assets/brand/concord-emblem.png";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +27,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const isDashboard = pathname === "/";
   const isLegacyApps = pathname === "/legacy-apps";
   const isUserManagement = pathname === "/admin/users";
+  const isLegacyAppsAccess = pathname === "/admin/legacy-apps/access";
+  const isGrantSets = pathname === "/admin/grant-sets";
 
   const navigationClass = (active: boolean) =>
     `flex w-full items-center rounded-lg py-3 text-sm font-medium transition-colors ${
@@ -127,9 +136,29 @@ export function Sidebar({ collapsed }: SidebarProps) {
               <Users className="h-5 w-5 shrink-0" />
               {!collapsed && <span>User Management</span>}
             </button>
+
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/admin/legacy-apps/access" })}
+              title={collapsed ? "Legacy Apps Access" : undefined}
+              aria-current={isLegacyAppsAccess ? "page" : undefined}
+              className={navigationClass(isLegacyAppsAccess)}
+            >
+              <AppWindow className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>Legacy Apps Access</span>}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/admin/grant-sets" })}
+              title={collapsed ? "Grant Sets" : undefined}
+              aria-current={isGrantSets ? "page" : undefined}
+              className={navigationClass(isGrantSets)}
+            >
+              <Layers className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>Grant Sets</span>}
+            </button>
           </>
         )}
-        
       </nav>
 
       <div className="shrink-0 border-t p-3">

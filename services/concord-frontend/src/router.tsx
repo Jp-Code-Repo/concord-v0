@@ -8,16 +8,23 @@ import {
   legacyAppsRoute,
   userManagementRoute,
   userDetailRoute,
+  legacyAppsAccessRoute,
+  legacyAppsAccessDetailRoute,
+  grantSetsRoute,
 } from "./routes";
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
   concordRoute.addChildren([
-    indexRoute, 
-    profileRoute, 
-    legacyAppsRoute, 
+    indexRoute,
+    profileRoute,
+    legacyAppsRoute,
     userManagementRoute,
-    userDetailRoute]),
+    userDetailRoute,
+    legacyAppsAccessRoute,
+    legacyAppsAccessDetailRoute,
+    grantSetsRoute,
+  ]),
 ]);
 
 export const router = createRouter({

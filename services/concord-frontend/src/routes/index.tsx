@@ -8,6 +8,9 @@ import { ProfilePage } from "@/pages/ProfilePage";
 import { LegacyAppsPage } from "@/pages/LegacyAppsPage";
 import { UserManagementPage } from "@/pages/UserManagementPage";
 import { UserDetailPage } from "@/pages/UserDetailPage";
+import { LegacyAppsAccessPage } from "@/pages/LegacyAppsAccessPage";
+import { LegacyAppsAccessDetailPage } from "@/pages/LegacyAppsAccessDetailPage";
+import { GrantSetsPage } from "@/pages/GrantSetsPage";
 
 export const concordRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -49,4 +52,24 @@ export const userDetailRoute = createRoute({
   getParentRoute: () => concordRoute,
   path: "/admin/users/$userId",
   component: UserDetailPage,
+});
+
+//Administrator Legacy Apps Access
+export const legacyAppsAccessRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/admin/legacy-apps/access",
+  component: LegacyAppsAccessPage,
+});
+
+// Administrator Legacy Apps Access Detail
+export const legacyAppsAccessDetailRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/admin/legacy-apps/access/$userId",
+  component: LegacyAppsAccessDetailPage,
+});
+
+export const grantSetsRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/admin/grant-sets",
+  component: GrantSetsPage,
 });

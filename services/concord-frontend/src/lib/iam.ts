@@ -62,6 +62,162 @@ export interface IamUserListItem {
   person: IamUserListPerson | null;
 }
 
+//Legacy Apps Access listing types
+
+export interface IamAccessSummaryItem {
+  id: string;
+  name: string;
+}
+
+export interface IamAccessUserPerson {
+  id: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  name_suffix: string | null;
+  display_name: string;
+  types: IamPersonType[];
+  student_number: string | null;
+}
+
+export interface IamAccessUserListItem {
+  id: string;
+  person_id: string;
+  username: string;
+  status: IamAccountStatus;
+  created_at: string;
+  person: IamAccessUserPerson | null;
+  effective_application_count: number;
+  applications: IamAccessSummaryItem[];
+  inactive_assignments: IamAccessSummaryItem[];
+}
+
+//Individual user's Legacy Apps access detail
+
+export type IamLegacyAppGrantSource =
+  | "individual"
+  | "grant_set"
+  | "batch";
+
+export interface IamLegacyAppAssignment extends IamLegacyApp {
+  granted_at: string;
+  grant_source: IamLegacyAppGrantSource;
+  is_active: boolean;
+}
+
+export interface IamLegacyAppGrantSetHistory {
+  grant_set_id: string;
+  name: string | null;
+  first_applied_at: string;
+  last_applied_at: string;
+}
+
+export interface IamUserLegacyAppsAccess {
+  applications: IamLegacyAppAssignment[];
+  inactive_assignments: IamLegacyAppAssignment[];
+  grant_sets: IamLegacyAppGrantSetHistory[];
+}
+
+export interface IamUserLegacyAppsAccessResponse {
+  data: IamUserLegacyAppsAccess;
+}
+
+export interface IamLegacyAppGrantRecord {
+  id: string;
+  user_id: string;
+  legacy_app_id: string;
+  granted_at: string;
+  granted_by: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+}
+
+export interface IamLegacyAppGrantResponse {
+  data: IamLegacyAppGrantRecord;
+}
+
+export interface IamLegacyAppsDirectoryResponse {
+  data: IamLegacyApp[];
+}
+
+// Grant Set types
+
+export interface IamGrantSetItem {
+  id: string;
+  grant_set_id: string;
+  legacy_app_id: string;
+}
+
+export interface IamGrantSet {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+  items: IamGrantSetItem[];
+}
+
+export interface IamGrantSetListResponse {
+  data: IamGrantSet[];
+}
+
+export interface IamGrantSetResponse {
+  data: IamGrantSet;
+}
+
+export interface IamCreateGrantSetPayload {
+  name: string;
+  description?: string | null;
+  legacy_app_ids: string[];
+}
+
+export interface IamUpdateGrantSetPayload {
+  name?: string;
+  description?: string | null;
+  legacy_app_ids?: string[];
+}
+
+export interface IamApplyGrantSetResponse {
+  data: {
+    id: string;
+    grant_set_id: string;
+    user_id: string;
+    actor_id: string;
+    legacy_app_ids: string[];
+    occurred_at: string;
+  };
+}
+
+export interface IamBatchGrantSetPayload {
+  user_ids: string[];
+  method: "grant_set";
+  grant_set_id: string;
+}
+
+export interface IamBatchIndividualAppsPayload {
+  user_ids: string[];
+  method: "individual_apps";
+  legacy_app_ids: string[];
+}
+
+export type IamBatchAssignmentPayload =
+  | IamBatchGrantSetPayload
+  | IamBatchIndividualAppsPayload;
+
+export interface IamBatchAssignmentResponse {
+  data: {
+    batch_id: string;
+    method: "grant_set" | "individual_apps";
+    users: Array<{
+      user_id: string;
+      application_event_id?: string;
+      granted_app_ids?: string[];
+      skipped_app_ids?: string[];
+    }>;
+  };
+}
+
 // User Management detail and mutation types
 
 export interface IamUserDetail {
@@ -174,7 +330,7 @@ export interface IamUser {
   person: IamPerson | null;
 }
 
-// NEW: Legacy application registry item returned by IAM
+//Legacy application registry item returned by IAM
 
 export interface IamLegacyApp {
   id: string;
@@ -378,6 +534,178 @@ export async function listIamUsers(
   const suffix = query.toString();
   return iamRequest<IamPagination<IamUserListItem>>(
     `/admin/users${suffix ? `?${suffix}` : ""}`,
+  );
+}
+
+// Legacy Apps Access API
+
+export interface IamLegacyAppsAccessListParams {
+  search?: string;
+  status?: IamAccountStatus;
+  per_page?: number;
+  page?: number;
+}
+
+export async function listIamLegacyAppsAccess(
+  params: IamLegacyAppsAccessListParams = {},
+): Promise<IamPagination<IamAccessUserListItem>> {
+  const query = new URLSearchParams();
+
+  if (params.search) query.set("search", params.search);
+  if (params.status) query.set("status", params.status);
+  if (params.per_page !== undefined) {
+    query.set("per_page", String(params.per_page));
+  }
+  if (params.page !== undefined) {
+    query.set("page", String(params.page));
+  }
+
+  const suffix = query.toString();
+
+  return iamRequest<IamPagination<IamAccessUserListItem>>(
+    `/admin/legacy-apps/access${suffix ? `?${suffix}` : ""}`,
+  );
+}
+
+//Individual Legacy Apps access API
+
+export async function getIamUserLegacyAppsAccess(
+  userId: string,
+): Promise<IamUserLegacyAppsAccessResponse> {
+  return iamRequest<IamUserLegacyAppsAccessResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/legacy-apps`,
+  );
+}
+
+export async function listIamLegacyAppsDirectory():
+  Promise<IamLegacyAppsDirectoryResponse> {
+  return iamRequest<IamLegacyAppsDirectoryResponse>("/legacy-apps");
+}
+
+export async function grantIamLegacyAppAccess(
+  userId: string,
+  legacyAppId: string,
+): Promise<IamLegacyAppGrantResponse> {
+  return iamRequest<IamLegacyAppGrantResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/legacy-apps/${encodeURIComponent(legacyAppId)}/grant`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function revokeIamLegacyAppAccess(
+  userId: string,
+  legacyAppId: string,
+): Promise<IamLegacyAppGrantResponse> {
+  return iamRequest<IamLegacyAppGrantResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/legacy-apps/${encodeURIComponent(legacyAppId)}/revoke`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+// Grant Set API
+
+export async function listIamGrantSets(
+  includeArchived = false,
+): Promise<IamGrantSetListResponse> {
+  const query = includeArchived ? "?include_archived=true" : "";
+
+  return iamRequest<IamGrantSetListResponse>(
+    `/admin/legacy-apps/grant-sets${query}`,
+  );
+}
+
+export async function getIamGrantSet(
+  grantSetId: string,
+  includeArchived = false,
+): Promise<IamGrantSetResponse> {
+  const query = includeArchived ? "?include_archived=true" : "";
+
+  return iamRequest<IamGrantSetResponse>(
+    `/admin/legacy-apps/grant-sets/${encodeURIComponent(grantSetId)}${query}`,
+  );
+}
+
+export async function createIamGrantSet(
+  payload: IamCreateGrantSetPayload,
+): Promise<IamGrantSetResponse> {
+  return iamRequest<IamGrantSetResponse>(
+    "/admin/legacy-apps/grant-sets",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateIamGrantSet(
+  grantSetId: string,
+  payload: IamUpdateGrantSetPayload,
+): Promise<IamGrantSetResponse> {
+  return iamRequest<IamGrantSetResponse>(
+    `/admin/legacy-apps/grant-sets/${encodeURIComponent(grantSetId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function archiveIamGrantSet(
+  grantSetId: string,
+): Promise<IamMessageResponse> {
+  return iamRequest<IamMessageResponse>(
+    `/admin/legacy-apps/grant-sets/${encodeURIComponent(grantSetId)}/archive`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function restoreIamGrantSet(
+  grantSetId: string,
+): Promise<IamGrantSetResponse> {
+  return iamRequest<IamGrantSetResponse>(
+    `/admin/legacy-apps/grant-sets/${encodeURIComponent(grantSetId)}/restore`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function applyIamGrantSet(
+  userId: string,
+  grantSetId: string,
+): Promise<IamApplyGrantSetResponse> {
+  return iamRequest<IamApplyGrantSetResponse>(
+    `/admin/users/${encodeURIComponent(userId)}/legacy-apps/grant-sets/${encodeURIComponent(grantSetId)}/apply`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function createIamBatchAssignment(
+  payload: IamBatchAssignmentPayload,
+): Promise<IamBatchAssignmentResponse> {
+  return iamRequest<IamBatchAssignmentResponse>(
+    "/admin/legacy-apps/batch-assignments",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
   );
 }
 

@@ -16,10 +16,10 @@ import {
   type IamLegacyApp,
 } from "@/lib/iam";
 
-
 export type AuthStatus =
   | "loading"
   | "authenticated"
+  | "password_change_required"
   | "unauthenticated"
   | "error";
 
@@ -47,7 +47,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const applySession = useCallback((session: IamSession) => {
     setUser(session.user);
-    setStatus("authenticated");
+
+    setStatus(
+      session.user.must_change_password
+        ? "password_change_required"
+        : "authenticated",
+    );
+
     setError(null);
     setLegacyApps(session.access?.legacy_apps ?? []);
   }, []);
@@ -91,8 +97,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setError(null);
 
       try {
-        // /login already returns the full session payload (same as /me),
-        // so there is no follow-up /me request.
+        // /login already returns the full session payload.
         const session = await iamLogin(username, password);
         applySession(session);
       } catch (requestError) {

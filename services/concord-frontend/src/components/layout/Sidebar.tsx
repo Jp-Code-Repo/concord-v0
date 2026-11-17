@@ -1,13 +1,17 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { ChevronRight, LayoutDashboard, LayoutGrid } from "lucide-react";
+import { ChevronRight, LayoutDashboard, LayoutGrid, Users} from "lucide-react";
 
 import emblem from "@/assets/brand/concord-emblem.png";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface SidebarProps {
   collapsed: boolean;
 }
 
 export function Sidebar({ collapsed }: SidebarProps) {
+  const { user } = useAuth();
+  const isAdministrator = user?.platform_authority.is_administrator === true;
+
   const navigate = useNavigate();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
@@ -15,6 +19,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
   const isDashboard = pathname === "/";
   const isLegacyApps = pathname === "/legacy-apps";
+  const isUserManagement = pathname === "/admin/users";
 
   const navigationClass = (active: boolean) =>
     `flex w-full items-center rounded-lg py-3 text-sm font-medium transition-colors ${
@@ -103,6 +108,28 @@ export function Sidebar({ collapsed }: SidebarProps) {
           <LayoutGrid className="h-5 w-5 shrink-0" />
           {!collapsed && <span>Legacy Apps</span>}
         </button>
+
+        {isAdministrator && (
+          <>
+            {!collapsed && (
+              <p className="px-2 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Administration
+              </p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/admin/users" })}
+              title={collapsed ? "User Management" : undefined}
+              aria-current={isUserManagement ? "page" : undefined}
+              className={navigationClass(isUserManagement)}
+            >
+              <Users className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>User Management</span>}
+            </button>
+          </>
+        )}
+        
       </nav>
 
       <div className="shrink-0 border-t p-3">

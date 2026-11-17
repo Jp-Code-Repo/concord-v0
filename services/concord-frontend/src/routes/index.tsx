@@ -6,6 +6,8 @@ import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ProfilePage } from "@/pages/ProfilePage";
 import { LegacyAppsPage } from "@/pages/LegacyAppsPage";
+import { UserManagementPage } from "@/pages/UserManagementPage";
+import { UserDetailPage } from "@/pages/UserDetailPage";
 
 export const concordRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -35,4 +37,16 @@ export const legacyAppsRoute = createRoute({
   getParentRoute: () => concordRoute,
   path: "/legacy-apps",
   component: LegacyAppsPage,
+});
+
+export const userManagementRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/admin/users",
+  component: UserManagementPage,
+});
+
+export const userDetailRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/admin/users/$userId",
+  component: UserDetailPage,
 });

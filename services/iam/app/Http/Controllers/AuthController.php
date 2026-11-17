@@ -47,14 +47,53 @@ class AuthController extends Controller
 
         $passwordOk = Hash::check($data['password'], $user?->password ?? self::DUMMY_HASH);
 
-        // Same answer for unknown user, wrong password and disabled account.
-        if (! $user || ! $passwordOk || $user->status !== 'active') {
+        // Explicitly return appropriate error codes for disabled/deactivated accounts
+        if (! $user || ! $passwordOk) {
             Audit::log('auth.login_failed', $user?->id, $request, meta: [
                 'username' => mb_substr($data['username'], 0, 100),
-                'reason' => ! $user ? 'unknown_user' : ($user->status !== 'active' ? $user->status : 'bad_password'),
+                'reason' => ! $user ? 'unknown_user' : 'bad_password',
             ]);
 
-            return response()->json(['message' => 'Invalid credentials.'], 401);
+            return response()->json([
+                'message' => 'Invalid credentials.',
+                'code' => 'INVALID_CREDENTIALS',
+            ], 401);
+        }
+
+        if ($user->status === User::STATUS_DISABLED) {
+            Audit::log('auth.login_failed', $user->id, $request, meta: [
+                'username' => mb_substr($data['username'], 0, 100),
+                'reason' => User::STATUS_DISABLED,
+            ]);
+
+            return response()->json([
+                'message' => 'Your account has been disabled. Please contact your system administrator.',
+                'code' => 'ACCOUNT_DISABLED',
+            ], 403);
+        }
+
+        if ($user->status === User::STATUS_DEACTIVATED) {
+            Audit::log('auth.login_failed', $user->id, $request, meta: [
+                'username' => mb_substr($data['username'], 0, 100),
+                'reason' => User::STATUS_DEACTIVATED,
+            ]);
+
+            return response()->json([
+                'message' => 'Your account has been deactivated. Please contact your system administrator.',
+                'code' => 'ACCOUNT_DEACTIVATED',
+            ], 403);
+        }
+
+        if ($user->status !== User::STATUS_ACTIVE) {
+            Audit::log('auth.login_failed', $user->id, $request, meta: [
+                'username' => mb_substr($data['username'], 0, 100),
+                'reason' => 'inactive_account',
+            ]);
+
+            return response()->json([
+                'message' => 'Invalid credentials.',
+                'code' => 'INVALID_CREDENTIALS',
+            ], 401);
         }
 
         [$token, $session] = $sessions->create($user, $request);

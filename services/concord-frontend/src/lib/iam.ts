@@ -201,20 +201,25 @@ export interface IamSession {
 interface IamErrorResponse {
   message?: string;
   errors?: Record<string, string[]>;
+  code?: string;
 }
 
 export class IamApiError extends Error {
   public readonly status: number;
   public readonly errors?: Record<string, string[]>;
+  public readonly code?: string; 
+
   constructor(
     message: string,
     status: number,
     errors?: Record<string, string[]>,
+    code?: string, 
   ) {
     super(message);
     this.name = "IamApiError";
     this.status = status;
     this.errors = errors;
+    this.code = code; 
   }
 }
 
@@ -242,7 +247,27 @@ async function iamRequest<T>(
       (response.status === 401
         ? "Your session is invalid or has expired."
         : `IAM request failed (${response.status}).`);
-    throw new IamApiError(message, response.status, errorData.errors);
+
+    //Notify the application when an authenticated session was revoked.
+      if (
+        endpoint !== "/login" &&
+        (errorData.code === "ACCOUNT_DISABLED" ||
+          errorData.code === "ACCOUNT_DEACTIVATED") &&
+        typeof window !== "undefined"
+      ) {
+        window.dispatchEvent(
+          new CustomEvent("iam:account-revoked", {
+            detail: { code: errorData.code },
+          }),
+        );
+      }
+
+    throw new IamApiError(
+      message,
+      response.status,
+      errorData.errors,
+      errorData.code,
+    );
   }
   if (response.status === 204) {
     return undefined as T;

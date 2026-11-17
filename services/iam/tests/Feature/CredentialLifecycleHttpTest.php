@@ -8,10 +8,18 @@ use App\Services\SessionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\HttpFoundation\Cookie;
 use Tests\TestCase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 
 class CredentialLifecycleHttpTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(ThrottleRequests::class);
+    }
 
     public function test_required_password_change_works_through_the_http_pipeline(): void
     {

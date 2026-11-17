@@ -14,7 +14,12 @@ export function ConcordLayout() {
   const [theme, setTheme] = useState<ConcordTheme>("light");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  const { status, refreshSession } = useAuth();
+    const {
+      status,
+      refreshSession,
+      accountRevocation,
+      acknowledgeAccountRevocation,
+    } = useAuth();
 
   function updateTheme(nextTheme: ConcordTheme) {
     setTheme(nextTheme);
@@ -87,6 +92,50 @@ export function ConcordLayout() {
               <Outlet />
             </main>
           </div>
+
+          {/* Blocking dialog for revoked accounts */}
+          {accountRevocation && (
+            <div
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="account-revocation-title"
+              aria-describedby="account-revocation-description"
+            >
+              <div className="w-full max-w-md rounded-xl border bg-background p-6 shadow-xl">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <span className="text-2xl font-bold">!</span>
+                </div>
+
+                <h2
+                  id="account-revocation-title"
+                  className="text-xl font-semibold"
+                >
+                  Account access revoked
+                </h2>
+
+                <p
+                  id="account-revocation-description"
+                  className="mt-3 text-sm leading-relaxed text-muted-foreground"
+                >
+                  {accountRevocation === "ACCOUNT_DISABLED"
+                    ? "Your account has been disabled."
+                    : "Your account has been deactivated."}{" "}
+                  Your access to Concord is no longer available. Please contact
+                  your administrator if you believe this is a mistake.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={acknowledgeAccountRevocation}
+                  className="mt-6 w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90"
+                >
+                  Return to Login
+                </button>
+              </div>
+            </div>
+          )}
+          
         </div>
       </ThemeContext.Provider>
     </CorrectionRequestProvider>

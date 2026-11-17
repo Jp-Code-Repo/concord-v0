@@ -101,6 +101,26 @@ class SessionService
     }
 
     /**
+     * Return the recorded lifecycle revocation reason for a valid session token.
+     * Ordinary revocations, expired sessions, and unknown tokens return null.
+     */
+    public function lifecycleRevocationReason(?string $plain): ?string
+    {
+        if (! $plain || ! preg_match('/^[a-f0-9]{64}$/', $plain)) {
+            return null;
+        }
+
+        $reason = DB::table('auth_sessions')
+            ->where('token_hash', hash('sha256', $plain))
+            ->whereNotNull('revoked_at')
+            ->value('revoked_reason');
+
+        return in_array($reason, ['account_disabled', 'account_deactivated'], true)
+            ? $reason
+            : null;
+    }
+
+    /**
      * Revoke one session.
      *
      * Logout already holds the plain token (from the cookie), so it passes it in and

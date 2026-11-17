@@ -31,6 +31,8 @@ export interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
   legacyApps: IamLegacyApp[];
+  accountRevocation: "ACCOUNT_DISABLED" | "ACCOUNT_DEACTIVATED" | null;
+  acknowledgeAccountRevocation: () => void;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,6 +46,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<IamUser | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [legacyApps, setLegacyApps] = useState<IamLegacyApp[]>([]);
+  //Stores why the authenticated account's access was revoked.
+  const [accountRevocation, setAccountRevocation] = useState<
+    "ACCOUNT_DISABLED" | "ACCOUNT_DEACTIVATED" | null
+  >(null);
 
   const applySession = useCallback((session: IamSession) => {
     setUser(session.user);
@@ -71,6 +77,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const session = await getCurrentUser();
       applySession(session);
     } catch (requestError) {
+      
+      if (
+        requestError instanceof IamApiError &&
+        (requestError.code === "ACCOUNT_DISABLED" ||
+          requestError.code === "ACCOUNT_DEACTIVATED")
+      ) {
+        setStatus("authenticated");
+        setError(null);
+        return;
+      }
+
       clearSession();
 
       if (requestError instanceof IamApiError && requestError.status === 401) {
@@ -91,6 +108,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
+
+  //Listen for account revocation events from IAM requests.
+  useEffect(() => {
+    function handleAccountRevoked(event: Event) {
+      const customEvent = event as CustomEvent<{
+        code: "ACCOUNT_DISABLED" | "ACCOUNT_DEACTIVATED";
+      }>;
+
+      setAccountRevocation(customEvent.detail.code);
+    }
+
+    window.addEventListener("iam:account-revoked", handleAccountRevoked);
+
+    return () => {
+      window.removeEventListener("iam:account-revoked", handleAccountRevoked);
+    };
+  }, []);
+
+  // NEW: Clear the local session after the user acknowledges the dialog.
+  const acknowledgeAccountRevocation = useCallback(() => {
+    clearSession();
+    setAccountRevocation(null);
+    setStatus("unauthenticated");
+  }, [clearSession]);
 
   const signIn = useCallback(
     async (username: string, password: string) => {
@@ -145,6 +186,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         signIn,
         signOut,
         refreshSession,
+        accountRevocation,
+        acknowledgeAccountRevocation,
       }}
     >
       {children}

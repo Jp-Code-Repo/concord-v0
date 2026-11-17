@@ -16,6 +16,24 @@ class SessionAuth
         $auth = $this->sessions->resolve($request->cookie(SessionService::COOKIE));
 
         if (! $auth) {
+            $revocationReason = $this->sessions->lifecycleRevocationReason(
+                $request->cookie(SessionService::COOKIE)
+            );
+
+            if ($revocationReason === 'account_disabled') {
+                return response()->json([
+                    'message' => 'Your account has been disabled. Please contact your system administrator.',
+                    'code' => 'ACCOUNT_DISABLED',
+                ], 401);
+            }
+
+            if ($revocationReason === 'account_deactivated') {
+                return response()->json([
+                    'message' => 'Your account has been deactivated. Please contact your system administrator.',
+                    'code' => 'ACCOUNT_DEACTIVATED',
+                ], 401);
+            }
+
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 

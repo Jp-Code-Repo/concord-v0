@@ -15,6 +15,7 @@ import {
   createIamGrantSet,
   listIamGrantSets,
   listIamLegacyAppsDirectory,
+  updateIamGrantSet,
   type IamGrantSet,
   type IamLegacyApp,
 } from "@/lib/iam";
@@ -50,6 +51,7 @@ export function GrantSetsPage() {
   const [editGrantSetError, setEditGrantSetError] = useState<string | null>(
     null,
   );
+  const [updatingGrantSet, setUpdatingGrantSet] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +165,48 @@ export function GrantSetsPage() {
       );
     } finally {
       setCreatingGrantSet(false);
+    }
+  };
+
+  // Update Grant Set
+  const handleUpdateGrantSet = async (
+    event: React.FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    if (!editingGrantSet || !editGrantSetName.trim()) return;
+
+    setUpdatingGrantSet(true);
+    setEditGrantSetError(null);
+
+    try {
+      await updateIamGrantSet(editingGrantSet.id, {
+        name: editGrantSetName.trim(),
+        description: editGrantSetDescription.trim() || null,
+        legacy_app_ids: editLegacyAppIds,
+      });
+
+      setEditingGrantSet(null);
+      setEditGrantSetName("");
+      setEditGrantSetDescription("");
+      setEditLegacyAppIds([]);
+
+      setReloadKey((current) => current + 1);
+    } catch (requestError: unknown) {
+      if (requestError instanceof IamApiError && requestError.status === 403) {
+        setEditGrantSetError(
+          "You do not have permission to update Grant Sets.",
+        );
+        return;
+      }
+
+      setEditGrantSetError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to update Grant Set.",
+      );
+    } finally {
+      setUpdatingGrantSet(false);
     }
   };
 
@@ -357,10 +401,7 @@ export function GrantSetsPage() {
             </p>
           </div>
 
-          <form
-            onSubmit={(event) => event.preventDefault()}
-            className="space-y-5"
-          >
+          <form onSubmit={handleUpdateGrantSet} className="space-y-5">
             {editGrantSetError && (
               <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
                 {editGrantSetError}
@@ -493,8 +534,11 @@ export function GrantSetsPage() {
                 Cancel
               </Button>
 
-              <Button type="submit" disabled={!editGrantSetName.trim()}>
-                Save Changes
+              <Button
+                type="submit"
+                disabled={!editGrantSetName.trim() || updatingGrantSet}
+              >
+                {updatingGrantSet ? "Saving..." : "Save Changes"}
               </Button>
             </div>
           </form>

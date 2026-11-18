@@ -12,9 +12,11 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   IamApiError,
+  archiveIamGrantSet,
   createIamGrantSet,
   listIamGrantSets,
   listIamLegacyAppsDirectory,
+  restoreIamGrantSet,
   updateIamGrantSet,
   type IamGrantSet,
   type IamLegacyApp,
@@ -52,6 +54,14 @@ export function GrantSetsPage() {
     null,
   );
   const [updatingGrantSet, setUpdatingGrantSet] = useState(false);
+
+  // Archive / Restore action state
+  const [processingGrantSetId, setProcessingGrantSetId] = useState<
+    string | null
+  >(null);
+  const [grantSetActionError, setGrantSetActionError] = useState<string | null>(
+    null,
+  );
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,6 +217,40 @@ export function GrantSetsPage() {
       );
     } finally {
       setUpdatingGrantSet(false);
+    }
+  };
+
+  // Archive / Restore Grant Set
+  const handleGrantSetStatusChange = async (grantSet: IamGrantSet) => {
+    if (processingGrantSetId) return;
+
+    const isArchived = grantSet.deleted_at !== null;
+
+    setProcessingGrantSetId(grantSet.id);
+    setGrantSetActionError(null);
+
+    try {
+      if (isArchived) {
+        await restoreIamGrantSet(grantSet.id);
+      } else {
+        await archiveIamGrantSet(grantSet.id);
+      }
+
+      setReloadKey((current) => current + 1);
+    } catch (requestError: unknown) {
+      if (requestError instanceof IamApiError && requestError.status === 403) {
+        setGrantSetActionError(
+          `You do not have permission to ${isArchived ? "restore" : "archive"} Grant Sets.`,
+        );
+      } else {
+        setGrantSetActionError(
+          requestError instanceof Error
+            ? requestError.message
+            : `Unable to ${isArchived ? "restore" : "archive"} Grant Set.`,
+        );
+      }
+    } finally {
+      setProcessingGrantSetId(null);
     }
   };
 
@@ -545,6 +589,12 @@ export function GrantSetsPage() {
         </section>
       )}
 
+      {grantSetActionError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          {grantSetActionError}
+        </div>
+      )}
+
       {/* Grant Set list */}
       <section className="overflow-hidden rounded-2xl border bg-card">
         {/* Filters */}
@@ -702,30 +752,53 @@ export function GrantSetsPage() {
 
                       {/* Actions */}
                       <td className="px-5 py-4 text-right">
-                        {!archived && (
+                        <div className="flex justify-end gap-2">
+                          {!archived && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              disabled={processingGrantSetId !== null}
+                              onClick={() => {
+                                setEditingGrantSet(grantSet);
+                                setEditGrantSetName(grantSet.name);
+                                setEditGrantSetDescription(
+                                  grantSet.description ?? "",
+                                );
+                                setEditLegacyAppIds(
+                                  grantSet.items.map(
+                                    (item) => item.legacy_app_id,
+                                  ),
+                                );
+                                setEditGrantSetError(null);
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </Button>
+                          )}
+
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             className="gap-2"
-                            onClick={() => {
-                              setEditingGrantSet(grantSet);
-                              setEditGrantSetName(grantSet.name);
-                              setEditGrantSetDescription(
-                                grantSet.description ?? "",
-                              );
-                              setEditLegacyAppIds(
-                                grantSet.items.map(
-                                  (item) => item.legacy_app_id,
-                                ),
-                              );
-                              setEditGrantSetError(null);
-                            }}
+                            disabled={processingGrantSetId !== null}
+                            onClick={() => handleGrantSetStatusChange(grantSet)}
                           >
-                            <Pencil className="h-4 w-4" />
-                            Edit
+                            {processingGrantSetId === grantSet.id ? (
+                              "Processing..."
+                            ) : archived ? (
+                              "Restore"
+                            ) : (
+                              <>
+                                <Archive className="h-4 w-4" />
+                                Archive
+                              </>
+                            )}
                           </Button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );

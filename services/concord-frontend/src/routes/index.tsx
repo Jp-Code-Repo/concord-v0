@@ -11,6 +11,7 @@ import { UserDetailPage } from "@/pages/UserDetailPage";
 import { LegacyAppsAccessPage } from "@/pages/LegacyAppsAccessPage";
 import { LegacyAppsAccessDetailPage } from "@/pages/LegacyAppsAccessDetailPage";
 import { GrantSetsPage } from "@/pages/GrantSetsPage";
+import { LegacyAppsManagementPage } from "@/pages/LegacyAppsManagementPage";
 
 export const concordRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -59,6 +60,12 @@ export const legacyAppsAccessRoute = createRoute({
   getParentRoute: () => concordRoute,
   path: "/admin/legacy-apps/access",
   component: LegacyAppsAccessPage,
+});
+
+export const legacyAppsManagementRoute = createRoute({
+  getParentRoute: () => concordRoute,
+  path: "/admin/legacy-apps",
+  component: LegacyAppsManagementPage,
 });
 
 // Administrator Legacy Apps Access Detail

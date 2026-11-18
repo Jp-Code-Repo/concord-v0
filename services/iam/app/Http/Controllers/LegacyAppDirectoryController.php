@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Support\Audit;
 use App\Http\Controllers\LegacyAppDirectoryController;
+use App\Services\AccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+
 
 
 class LegacyAppDirectoryController extends Controller
@@ -203,8 +205,9 @@ class LegacyAppDirectoryController extends Controller
     public function activate(
         Request $request,
         string $legacyApp,
+        AccessService $access,
     ): JsonResponse {
-        return $this->setActive($request, $legacyApp, true);
+        return $this->setActive($request, $legacyApp, true, $access);
     }
 
     /**
@@ -213,49 +216,64 @@ class LegacyAppDirectoryController extends Controller
     public function deactivate(
         Request $request,
         string $legacyApp,
+        AccessService $access,
     ): JsonResponse {
-        return $this->setActive($request, $legacyApp, false);
+        return $this->setActive($request, $legacyApp, false, $access);
     }
 
     /**
      * Change the active status of a Legacy App.
-     */
+        */
     private function setActive(
         Request $request,
         string $legacyApp,
         bool $isActive,
+        AccessService $access,
     ): JsonResponse {
-        $existing = DB::connection('concord_platform')
+    $existing = DB::connection('concord_platform')
+        ->table('legacy_apps')
+        ->where('id', $legacyApp)
+        ->first();
+
+    abort_if($existing === null, 404, 'Legacy App not found.');
+
+    if ((bool) $existing->is_active !== $isActive) {
+        // Identify users with an existing, non-revoked grant.
+        $affectedUserIds = DB::table('user_legacy_app_grants')
+            ->where('legacy_app_id', $legacyApp)
+            ->whereNull('revoked_at')
+            ->distinct()
+            ->pluck('user_id');
+
+        DB::connection('concord_platform')
             ->table('legacy_apps')
             ->where('id', $legacyApp)
-            ->first();
+            ->update([
+                'is_active' => $isActive,
+                'updated_at' => now(),
+            ]);
 
-        abort_if($existing === null, 404, 'Legacy App not found.');
-
-        if ((bool) $existing->is_active !== $isActive) {
-            DB::connection('concord_platform')
-                ->table('legacy_apps')
-                ->where('id', $legacyApp)
-                ->update([
-                    'is_active' => $isActive,
-                    'updated_at' => now(),
-                ]);
-
-            Audit::log(
-                $isActive
-                    ? 'iam.legacy_app.activated'
-                    : 'iam.legacy_app.deactivated',
-                $request->attributes->get('auth')['user_id'],
-                $request,
-                entityType: 'legacy_app',
-                entityId: $legacyApp,
-            );
+        // Clear cached access so the next /me request
+        // reflects the application's new status.
+        foreach ($affectedUserIds as $userId) {
+            $access->forget($userId);
         }
 
-        return response()->json([
-            'data' => $this->findApp($legacyApp),
-        ]);
+        Audit::log(
+            $isActive
+                ? 'iam.legacy_app.activated'
+                : 'iam.legacy_app.deactivated',
+            $request->attributes->get('auth')['user_id'],
+            $request,
+            entityType: 'legacy_app',
+            entityId: $legacyApp,
+        );
     }
+
+    return response()->json([
+        'data' => $this->findApp($legacyApp),
+    ]);
+}
 
     /**
      * Find a Legacy App by ID.

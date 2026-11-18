@@ -1,34 +1,8 @@
 import { useAuth } from "@/contexts/AuthContext";
 
-import {
-  AppWindow,
-  ArrowRight,
-  BookOpen,
-  ChartNoAxesColumn,
-  ClipboardList,
-  GraduationCap,
-  HeartPulse,
-  ShieldCheck,
-  Users,
-  UsersRound,
-  Wallet,
-  Wrench,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-import type { LucideIcon } from "lucide-react";
-
-const legacyAppIcons: Record<string, LucideIcon> = {
-  books: BookOpen,
-  users: Users,
-  "graduation-cap": GraduationCap,
-  "clipboard-list": ClipboardList,
-  "heart-pulse": HeartPulse,
-  wallet: Wallet,
-  "chart-no-axes-column": ChartNoAxesColumn,
-  "shield-check": ShieldCheck,
-  "users-round": UsersRound,
-  wrench: Wrench,
-};
+import { getLegacyAppIcon } from "@/lib/legacy-app-icons";
 
 const iconColors = [
   "bg-blue-600 text-white",
@@ -45,7 +19,7 @@ const arrowColors = [
   "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
   "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
   "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-300",
-  "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  "bg-rose-100 text-rose-600 dark:bg-rose-950 dark:text-rose-300",
 ];
 
 export function ApplicationsSection() {
@@ -62,7 +36,7 @@ export function ApplicationsSection() {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
       {legacyApps.map((app, index) => {
-        const Icon = legacyAppIcons[app.icon ?? ""] ?? AppWindow;
+        const Icon = getLegacyAppIcon(app.icon);
         const colorIndex = index % iconColors.length;
 
         return (

@@ -29,6 +29,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const isUserManagement = pathname === "/admin/users";
   const isLegacyAppsAccess = pathname === "/admin/legacy-apps/access";
   const isGrantSets = pathname === "/admin/grant-sets";
+  const isLegacyAppsManagement = pathname === "/admin/legacy-apps";
 
   const navigationClass = (active: boolean) =>
     `flex w-full items-center rounded-lg py-3 text-sm font-medium transition-colors ${
@@ -135,6 +136,17 @@ export function Sidebar({ collapsed }: SidebarProps) {
             >
               <Users className="h-5 w-5 shrink-0" />
               {!collapsed && <span>User Management</span>}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/admin/legacy-apps" })}
+              title={collapsed ? "Legacy App Directory" : undefined}
+              aria-current={isLegacyAppsManagement ? "page" : undefined}
+              className={navigationClass(isLegacyAppsManagement)}
+            >
+              <LayoutGrid className="h-5 w-5 shrink-0" />
+              {!collapsed && <span>Legacy App Directory</span>}
             </button>
 
             <button

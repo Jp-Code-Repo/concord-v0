@@ -140,6 +140,40 @@ export interface IamLegacyAppsDirectoryResponse {
   data: IamLegacyApp[];
 }
 
+// Administrator Legacy App Directory Management
+
+export interface IamManagedLegacyApp {
+  id: string;
+  name: string;
+  url: string;
+  icon: string | null;
+  description: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IamManagedLegacyAppsResponse {
+  data: IamManagedLegacyApp[];
+}
+
+export interface IamManagedLegacyAppResponse {
+  data: IamManagedLegacyApp;
+}
+
+export interface IamCreateLegacyAppPayload {
+  name: string;
+  url: string;
+  icon?: string | null;
+  description?: string | null;
+  sort_order?: number;
+}
+
+export type IamUpdateLegacyAppPayload =
+  Partial<IamCreateLegacyAppPayload>;
+
+
 // Grant Set types
 
 export interface IamGrantSetItem {
@@ -580,6 +614,68 @@ export async function getIamUserLegacyAppsAccess(
 export async function listIamLegacyAppsDirectory():
   Promise<IamLegacyAppsDirectoryResponse> {
   return iamRequest<IamLegacyAppsDirectoryResponse>("/legacy-apps");
+}
+
+// Administrator Legacy App Directory Management API
+
+export async function listIamLegacyAppsForManagement():
+  Promise<IamManagedLegacyAppsResponse> {
+  return iamRequest<IamManagedLegacyAppsResponse>(
+    "/admin/legacy-apps",
+  );
+}
+
+export async function getIamManagedLegacyApp(
+  appId: string,
+): Promise<IamManagedLegacyAppResponse> {
+  return iamRequest<IamManagedLegacyAppResponse>(
+    `/admin/legacy-apps/${encodeURIComponent(appId)}`,
+  );
+}
+
+export async function createIamLegacyApp(
+  payload: IamCreateLegacyAppPayload,
+): Promise<IamManagedLegacyAppResponse> {
+  return iamRequest<IamManagedLegacyAppResponse>(
+    "/admin/legacy-apps",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function updateIamManagedLegacyApp(
+  appId: string,
+  payload: IamUpdateLegacyAppPayload,
+): Promise<IamManagedLegacyAppResponse> {
+  return iamRequest<IamManagedLegacyAppResponse>(
+    `/admin/legacy-apps/${encodeURIComponent(appId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function activateIamLegacyApp(
+  appId: string,
+): Promise<IamManagedLegacyAppResponse> {
+  return iamRequest<IamManagedLegacyAppResponse>(
+    `/admin/legacy-apps/${encodeURIComponent(appId)}/activate`,
+    { method: "POST" },
+  );
+}
+
+export async function deactivateIamLegacyApp(
+  appId: string,
+): Promise<IamManagedLegacyAppResponse> {
+  return iamRequest<IamManagedLegacyAppResponse>(
+    `/admin/legacy-apps/${encodeURIComponent(appId)}/deactivate`,
+    { method: "POST" },
+  );
 }
 
 export async function grantIamLegacyAppAccess(

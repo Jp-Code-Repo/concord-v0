@@ -90,7 +90,6 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       IAM_DB_PASSWORD: ${IAM_DB_PASSWORD}
-      HR_DB_PASSWORD: ${HR_DB_PASSWORD}
       CONCORD_DB_PASSWORD: ${CONCORD_DB_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql

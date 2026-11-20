@@ -23,10 +23,10 @@ set_var HOST_UID "$(id -u)"
 set_var HOST_GID "$(id -g)"
 fill_var MYSQL_ROOT_PASSWORD "$(rand)"
 fill_var IAM_DB_PASSWORD     "$(rand)"
-fill_var HR_DB_PASSWORD      "$(rand)"
 fill_var REDIS_PASSWORD      "$(rand)"
 fill_var IAM_APP_KEY         "base64:$(openssl rand -base64 32)"
 fill_var IAM_ADMIN_PASSWORD  "$(rand)"
+fill_var CONCORD_DB_PASSWORD "$(rand)"
 
 echo "==> Building the shared PHP base image"
 docker compose build php-base

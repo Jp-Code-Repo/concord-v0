@@ -35,15 +35,15 @@ Current phase: Backend implementation. Milestones 1–5 complete; Milestone 6 is
 - [x] Step 3: Complete User Management APIs and account lifecycle.
 - [x] Step 4: Add Legacy Apps grant-period and immutable event persistence.
 - [x] Step 5: Implement Grant Set lifecycle and archive/restore.
-- [ ] Step 6: Implement individual access read/save. ← Current
-- [ ] Step 7: Implement additive Grant Set application and history summaries. (Service implementation and focused tests partially completed; API integration remains.)
-- [ ] Step 8: Implement additive Batch Assign.
-- [ ] Step 9: Integrate per-user effective apps into login, /me, and Legacy Apps.
-- [ ] Step 10: Complete backend regression and API verification.
-- [ ] Step 11: Freeze the frontend API handoff from verified responses.
-- [ ] Step 12: Implement User Management frontend.
-- [ ] Step 13: Implement Legacy Apps Access frontend.
-- [ ] Step 14: Complete frontend regression and end-to-end verification.
+- [x] Step 6: Implement individual access read/save. ← Current
+- [x] Step 7: Implement additive Grant Set application and history summaries. (Service implementation and focused tests partially completed; API integration remains.)
+- [x] Step 8: Implement additive Batch Assign.
+- [x] Step 9: Integrate per-user effective apps into login, /me, and Legacy Apps.
+- [x] Step 10: Complete backend regression and API verification.
+- [x] Step 11: Freeze the frontend API handoff from verified responses.
+- [x] Step 12: Implement User Management frontend.
+- [x] Step 13: Implement Legacy Apps Access frontend.
+- [x] Step 14: Complete frontend regression and end-to-end verification.
 
 ## Guardrails
 
@@ -172,16 +172,16 @@ These are focused verification results. They are not a substitute for the full I
 
 ### Remaining Milestone 6 work
 
-- [ ] Expose individual access read API.
-- [ ] Expose Grant Set application API.
-- [ ] Implement atomic combined grant/revoke saving.
-- [ ] Add API authorization tests.
-- [ ] Add API response-contract tests.
-- [ ] Verify Grant Set application-history responses.
-- [ ] Verify transaction rollback behavior.
-- [ ] Verify immutable history behavior under the application workflow.
-- [ ] Run the complete IAM regression suite.
-- [ ] Update the frontend API handoff using verified responses.
+- [x] Expose individual access read API.
+- [x] Expose Grant Set application API.
+- [x] Implement atomic combined grant/revoke saving.
+- [x] Add API authorization tests.
+- [x] Add API response-contract tests.
+- [x] Verify Grant Set application-history responses.
+- [x] Verify transaction rollback behavior.
+- [x] Verify immutable history behavior under the application workflow.
+- [x] Run the complete IAM regression suite.
+- [x] Update the frontend API handoff using verified responses.
 
 ### Approved implementation boundaries
 
